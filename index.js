@@ -26,22 +26,22 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
-// Fit font size
-function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 40, maxLines = 6, maxFontSize = 400) {
+// Fit font size dengan batasan line lebih fleksibel
+function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 40, maxLines = 4, maxFontSize = 60) {
   let fontSize = maxFontSize;
   let lines = [];
 
   do {
-    ctx.font = `${fontSize}px XyzFont`; // Tidak bold
+    ctx.font = `${fontSize}px XyzFont`;
     lines = wrapText(ctx, text, canvasWidth - margin * 2);
-    if (lines.length > maxLines) fontSize -= 1; // lebih halus
+    if (lines.length > maxLines) fontSize -= 3;
     else break;
-  } while (fontSize > 12);
+  } while (fontSize > 20); // Minimum 20px
 
   return { fontSize, lines };
 }
 
-// Draw justified text (kiri ke kanan, atas ke bawah)
+// Draw justified text
 function drawJustifiedText(ctx, lines, x, yStart, lineHeight, canvasWidth, margin) {
   lines.forEach((line, idx) => {
     const words = line.split(' ');
@@ -61,26 +61,31 @@ function drawJustifiedText(ctx, lines, x, yStart, lineHeight, canvasWidth, margi
 
 // --- BRAT BASIC JPEG ---
 function generateImage(text) {
-  const width = 600, height = 600, margin = 40;
+  const width = 700, height = 500, margin = 40;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Background dengan gradient subtle
+  // Background dengan gradient
   const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#f8f9fa');
-  gradient.addColorStop(1, '#e9ecef');
+  gradient.addColorStop(0, '#f5f7fa');
+  gradient.addColorStop(1, '#c3cfe2');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
-  if (text.length > 200) text = text.substring(0, 200);
+  if (text.length > 250) text = text.substring(0, 250);
 
-  const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, 6, 40);
+  // Tentukan maxLines berdasarkan panjang text
+  const textLength = text.length;
+  const maxLines = textLength > 100 ? 4 : 3;
+  const maxFontSize = textLength > 150 ? 50 : 60;
 
-  ctx.font = `${fontSize}px XyzFont`; // Tidak bold
+  const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, maxLines, maxFontSize);
+
+  ctx.font = `${fontSize}px XyzFont`;
   ctx.fillStyle = '#2d3436';
   ctx.textBaseline = 'top';
 
-  const lineHeight = fontSize * 1.4;
+  const lineHeight = fontSize * 1.5;
   const totalTextHeight = lines.length * lineHeight;
   const yStart = (height - totalTextHeight) / 2;
 
@@ -89,122 +94,165 @@ function generateImage(text) {
   return canvas.toBuffer('image/jpeg', { quality: 0.95 });
 }
 
-// --- BRAT ANIMASI GIF KATA PER KATA ---
+// --- BRAT ANIMASI GIF KATA PER KATA YANG RAPI ---
 function generateGifAnimated(text) {
-  const width = 600, height = 600, margin = 40;
+  const width = 700, height = 500, margin = 40;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
   // Setup GIF encoder
   const encoder = new GIFEncoder(width, height);
   encoder.start();
-  encoder.setRepeat(0);
-  encoder.setDelay(150); // 150ms per kata
+  encoder.setRepeat(0); // Infinite loop
+  encoder.setDelay(120); // 120ms per kata
   encoder.setQuality(15);
 
+  // Persiapan text
   const words = text.split(' ');
-  const maxWords = Math.min(words.length, 20); // Batasi maksimal 20 kata
+  if (words.length > 30) {
+    words.length = 30; // Batasi maksimal 30 kata
+  }
+
+  // Tentukan ukuran font berdasarkan jumlah kata
+  const tempText = words.slice(0, Math.min(8, words.length)).join(' ');
+  const maxLines = words.length > 15 ? 4 : 3;
+  const maxFontSize = words.length > 20 ? 48 : 60;
   
-  // Setup font (cari ukuran yang pas)
-  const tempText = words.slice(0, Math.min(5, words.length)).join(' ');
-  const { fontSize } = fitTextToCanvas(ctx, tempText, width, height, margin, 6, 40);
+  const { fontSize } = fitTextToCanvas(ctx, tempText, width, height, margin, maxLines, maxFontSize);
   ctx.font = `${fontSize}px XyzFont`;
   ctx.fillStyle = '#2d3436';
   ctx.textBaseline = 'top';
   
-  const lineHeight = fontSize * 1.4;
+  const lineHeight = fontSize * 1.5;
   const maxLineWidth = width - margin * 2;
-  
-  // Pre-calculate semua kata dengan posisi yang tepat
+
+  // PRE-CALCULATE: Tentukan posisi setiap kata dengan benar
   const wordPositions = [];
-  let currentLine = '';
+  let currentLineWords = [];
+  let currentLineText = '';
   let currentLineIndex = 0;
-  let currentX = margin;
-  let currentY = 150; // Mulai dari atas
+  let currentLineY = 0;
   
-  for (const word of words.slice(0, maxWords)) {
-    const wordWithSpace = currentLine ? ' ' + word : word;
-    const testLine = currentLine + wordWithSpace;
+  // Hitung posisi Y awal (center vertikal)
+  const estimatedLines = Math.ceil(words.length / 5); // Estimasi kasar
+  const startY = (height - (estimatedLines * lineHeight)) / 2;
+  currentLineY = startY;
+  
+  // Proses setiap kata untuk menentukan posisinya
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const testLine = currentLineText ? currentLineText + ' ' + word : word;
     const testWidth = ctx.measureText(testLine).width;
     
-    if (testWidth > maxLineWidth && currentLine !== '') {
-      // Pindah ke baris baru
-      currentLineIndex++;
-      currentLine = word;
-      currentY += lineHeight;
-      currentX = margin;
-    } else {
-      currentLine = testLine;
-    }
-    
-    // Hitung posisi X untuk kata ini (dengan justify)
-    const wordsInLine = currentLine.split(' ');
-    let wordX = margin;
-    
-    if (wordsInLine.length > 1) {
-      const lineText = currentLine;
-      const wordsInCurrentLine = lineText.split(' ');
-      const totalWidth = wordsInCurrentLine.reduce((sum, w) => sum + ctx.measureText(w).width, 0);
-      const spaceWidth = (maxLineWidth - totalWidth) / (wordsInCurrentLine.length - 1);
+    // Jika melebihi width atau ini kata pertama di baris baru
+    if ((testWidth > maxLineWidth && currentLineText !== '') || i === words.length) {
+      // Simpan baris yang sudah terkumpul dengan posisi X yang benar
+      const totalWidth = currentLineWords.reduce((sum, w) => sum + ctx.measureText(w).width, 0);
+      const spaceCount = currentLineWords.length - 1;
+      const spaceWidth = spaceCount > 0 ? (maxLineWidth - totalWidth) / spaceCount : 0;
       
-      // Cari posisi kata ini dalam baris
-      let tempX = margin;
-      for (let i = 0; i < wordsInCurrentLine.length; i++) {
-        if (wordsInCurrentLine[i] === word) {
-          wordX = tempX;
-          break;
-        }
-        tempX += ctx.measureText(wordsInCurrentLine[i]).width + spaceWidth;
+      let currentX = margin;
+      for (let j = 0; j < currentLineWords.length; j++) {
+        wordPositions.push({
+          word: currentLineWords[j],
+          line: currentLineIndex,
+          x: currentX,
+          y: currentLineY,
+          indexInLine: j,
+          totalInLine: currentLineWords.length
+        });
+        currentX += ctx.measureText(currentLineWords[j]).width + spaceWidth;
       }
+      
+      // Reset untuk baris baru
+      currentLineIndex++;
+      currentLineWords = [word];
+      currentLineText = word;
+      currentLineY += lineHeight;
+    } else {
+      // Tambah ke baris saat ini
+      currentLineWords.push(word);
+      currentLineText = testLine;
     }
-    
-    wordPositions.push({
-      word,
-      line: currentLineIndex,
-      x: wordX,
-      y: currentY,
-      show: false
-    });
   }
   
-  // ANIMASI: Tampilkan kata per kata
-  const totalFrames = wordPositions.length + 2; // +2 untuk frame awal dan akhir
+  // Simpan baris terakhir
+  if (currentLineWords.length > 0) {
+    const totalWidth = currentLineWords.reduce((sum, w) => sum + ctx.measureText(w).width, 0);
+    const spaceCount = currentLineWords.length - 1;
+    const spaceWidth = spaceCount > 0 ? (maxLineWidth - totalWidth) / spaceCount : 0;
+    
+    let currentX = margin;
+    for (let j = 0; j < currentLineWords.length; j++) {
+      wordPositions.push({
+        word: currentLineWords[j],
+        line: currentLineIndex,
+        x: currentX,
+        y: currentLineY,
+        indexInLine: j,
+        totalInLine: currentLineWords.length
+      });
+      currentX += ctx.measureText(currentLineWords[j]).width + spaceWidth;
+    }
+  }
   
-  for (let frame = 0; frame < totalFrames; frame++) {
+  // ANIMASI: Tampilkan kata per kata dengan urutan yang benar
+  const totalWords = wordPositions.length;
+  
+  // Frame pertama: hanya background
+  {
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#f5f7fa');
+    gradient.addColorStop(1, '#c3cfe2');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    encoder.addFrame(ctx);
+  }
+  
+  // Animasi kata per kata
+  for (let frame = 0; frame <= totalWords; frame++) {
     // Clear canvas dengan background
     const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f8f9fa');
-    gradient.addColorStop(1, '#e9ecef');
+    gradient.addColorStop(0, '#f5f7fa');
+    gradient.addColorStop(1, '#c3cfe2');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     
+    // Setup font
     ctx.font = `${fontSize}px XyzFont`;
     ctx.fillStyle = '#2d3436';
     
-    // Tentukan kata mana yang harus ditampilkan
-    const wordsToShow = frame - 1; // frame 0: kosong, frame 1: kata 1, dst
-    
-    // Gambar semua kata yang sudah muncul
-    for (let i = 0; i < Math.min(wordsToShow, wordPositions.length); i++) {
+    // Gambar kata-kata yang sudah muncul
+    for (let i = 0; i < frame && i < totalWords; i++) {
       const pos = wordPositions[i];
       ctx.fillText(pos.word, pos.x, pos.y);
     }
     
     encoder.addFrame(ctx);
+    
+    // Tambah extra frame untuk kata terakhir di setiap baris
+    if (frame < totalWords) {
+      const currentWord = wordPositions[frame];
+      const isLastInLine = currentWord && (currentWord.indexInLine === currentWord.totalInLine - 1);
+      
+      if (isLastInLine) {
+        // Duplicate frame untuk jeda kecil di akhir baris
+        encoder.addFrame(ctx);
+      }
+    }
   }
   
-  // Tahan frame terakhir sedikit lebih lama (3 frame)
-  for (let i = 0; i < 3; i++) {
+  // Tahan teks lengkap (8 frame)
+  for (let i = 0; i < 8; i++) {
     const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f8f9fa');
-    gradient.addColorStop(1, '#e9ecef');
+    gradient.addColorStop(0, '#f5f7fa');
+    gradient.addColorStop(1, '#c3cfe2');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     
     ctx.font = `${fontSize}px XyzFont`;
     ctx.fillStyle = '#2d3436';
     
-    // Gambar semua kata
     wordPositions.forEach(pos => {
       ctx.fillText(pos.word, pos.x, pos.y);
     });
@@ -212,16 +260,16 @@ function generateGifAnimated(text) {
     encoder.addFrame(ctx);
   }
   
-  // Fade out (5 frame)
-  for (let fade = 0; fade <= 5; fade++) {
+  // Fade out (6 frame)
+  for (let fade = 0; fade <= 6; fade++) {
     const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f8f9fa');
-    gradient.addColorStop(1, '#e9ecef');
+    gradient.addColorStop(0, '#f5f7fa');
+    gradient.addColorStop(1, '#c3cfe2');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
     
     ctx.font = `${fontSize}px XyzFont`;
-    ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / 5)})`;
+    ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / 6)})`;
     
     wordPositions.forEach(pos => {
       ctx.fillText(pos.word, pos.x, pos.y);
@@ -372,13 +420,32 @@ module.exports = async (req, res) => {
               border-top: 1px solid #e0e0e0;
               text-align: center;
             }
+            .info-box {
+              background: #e3f2fd;
+              padding: 15px;
+              border-radius: 10px;
+              margin: 20px 0;
+              border-left: 4px solid #2196f3;
+            }
+            .info-box h4 {
+              color: #1976d2;
+              margin-bottom: 8px;
+            }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
               <h1>🎨 Brat JPEG Generator</h1>
-              <p>Create beautiful justified text images</p>
+              <p>Create beautiful justified text images with perfect alignment</p>
+            </div>
+            
+            <div class="info-box">
+              <h4>✨ Fitur Unggulan:</h4>
+              <p>• Text justify alignment yang rapi</p>
+              <p>• Font size otomatis (besar untuk teks pendek, optimal untuk teks panjang)</p>
+              <p>• 3-4 lines maksimal dengan font yang mudah dibaca</p>
+              <p>• Background gradient yang eye-catching</p>
             </div>
             
             <div class="form-container">
@@ -389,7 +456,7 @@ module.exports = async (req, res) => {
                     id="text" 
                     name="text" 
                     rows="4" 
-                    placeholder="Type your text here... Example: Hello this is a justified text example that will look beautiful"
+                    placeholder="Type your text here... Example: Create beautiful justified text images with perfect alignment and readable font size"
                     required
                   ></textarea>
                 </div>
@@ -399,17 +466,17 @@ module.exports = async (req, res) => {
             
             <div class="preview">
               <h3>Preview:</h3>
-              <img src="/brat?text=Welcome%20to%20Brat%20Generator%20Create%20beautiful%20justified%20text%20images%20with%20perfect%20alignment" 
+              <img src="/brat?text=Create%20Beautiful%20Justified%20Text%20Images%20With%20Perfect%20Alignment%20And%20Optimal%20Font%20Size%20For%20Best%20Readability" 
                    alt="JPEG Preview">
             </div>
             
             <div class="examples">
               <h3>Try these examples:</h3>
               <div class="example-links">
-                <a href="/brat?text=Hello%20World%20This%20is%20a%20test" class="example-link">Simple Test</a>
-                <a href="/brat?text=The%20quick%20brown%20fox%20jumps%20over%20the%20lazy%20dog" class="example-link">Quick Brown Fox</a>
-                <a href="/brat?text=Create%20amazing%20text%20images%20with%20perfect%20justify%20alignment" class="example-link">Justify Example</a>
-                <a href="/brat?text=This%20is%20a%20longer%20text%20example%20that%20will%20show%20how%20the%20justify%20alignment%20works%20with%20multiple%20lines" class="example-link">Multi-line</a>
+                <a href="/brat?text=Hello%20World" class="example-link">Short Text</a>
+                <a href="/brat?text=This%20is%20a%20medium%20length%20text%20example" class="example-link">Medium Text</a>
+                <a href="/brat?text=Create%20amazing%20text%20images%20with%20perfect%20justify%20alignment%20and%20beautiful%20typography%20for%20your%20projects" class="example-link">Long Text</a>
+                <a href="/brat?text=The%20quick%20brown%20fox%20jumps%20over%20the%20lazy%20dog%20This%20sentence%20contains%20all%20letters" class="example-link">All Letters</a>
               </div>
             </div>
             
@@ -592,6 +659,17 @@ module.exports = async (req, res) => {
               color: #00b09b;
               font-weight: bold;
             }
+            .info-box {
+              background: #e8f5e9;
+              padding: 15px;
+              border-radius: 10px;
+              margin: 20px 0;
+              border-left: 4px solid #4caf50;
+            }
+            .info-box h4 {
+              color: #2e7d32;
+              margin-bottom: 8px;
+            }
             .nav {
               margin-top: 30px;
               padding-top: 20px;
@@ -604,7 +682,16 @@ module.exports = async (req, res) => {
           <div class="container">
             <div class="header">
               <h1>🎬 Brat GIF Generator</h1>
-              <p>Create animated typing effect GIFs</p>
+              <p>Create animated word-by-word typing GIFs</p>
+            </div>
+            
+            <div class="info-box">
+              <h4>✨ Animasi yang Rapi:</h4>
+              <p>• Kata muncul satu per satu dengan urutan yang benar</p>
+              <p>• Text justify alignment yang sempurna</p>
+              <p>• Otomatis pindah baris ketika penuh</p>
+              <p>• Font size besar dan mudah dibaca</p>
+              <p>• Tidak ada tumpukan kata, layout yang teratur</p>
             </div>
             
             <div class="form-container">
@@ -615,7 +702,7 @@ module.exports = async (req, res) => {
                     id="text" 
                     name="text" 
                     rows="4" 
-                    placeholder="Type your text here... Example: Hello this text will appear word by word with smooth animation"
+                    placeholder="Type your text here... Example: Hello welcome to Brat GIF generator watch each word appear one by one with perfect alignment"
                     required
                   ></textarea>
                 </div>
@@ -625,28 +712,29 @@ module.exports = async (req, res) => {
             
             <div class="preview">
               <h3>Live Preview:</h3>
-              <img src="/bratanim?text=Hello%20Welcome%20to%20Brat%20GIF%20Generator%20Watch%20words%20appear%20one%20by%20one" 
+              <img src="/bratanim?text=Welcome%20to%20Brat%20GIF%20Generator%20Watch%20words%20appear%20one%20by%20one%20with%20perfect%20alignment%20and%20smooth%20animation" 
                    alt="GIF Preview">
             </div>
             
             <div class="feature-list">
               <h3>✨ Features:</h3>
               <ul>
-                <li>Word-by-word typing animation</li>
-                <li>Justified text alignment</li>
-                <li>Smooth fade effects</li>
+                <li>Word-by-word animation (tanpa cursor)</li>
+                <li>Justified text alignment yang rapi</li>
+                <li>Otomatis wrap ke baris berikutnya</li>
+                <li>Font size besar dan optimal</li>
+                <li>Background gradient yang eye-catching</li>
                 <li>Infinite loop animation</li>
-                <li>Clean modern design</li>
               </ul>
             </div>
             
             <div class="examples">
               <h3>Try these examples:</h3>
               <div class="example-links">
-                <a href="/bratanim?text=Hello%20World" class="example-link">Hello World</a>
-                <a href="/bratanim?text=This%20is%20amazing" class="example-link">Simple Message</a>
-                <a href="/bratanim?text=Watch%20each%20word%20appear%20smoothly" class="example-link">Word by Word</a>
-                <a href="/bratanim?text=Create%20beautiful%20animated%20text%20for%20social%20media" class="example-link">Social Media</a>
+                <a href="/bratanim?text=Hello%20World" class="example-link">Short Text</a>
+                <a href="/bratanim?text=This%20is%20a%20word%20by%20word%20animation" class="example-link">Animation Demo</a>
+                <a href="/bratanim?text=Create%20beautiful%20animated%20text%20with%20perfect%20justify%20alignment%20for%20your%20social%20media%20posts" class="example-link">Long Example</a>
+                <a href="/bratanim?text=Watch%20each%20word%20appear%20smoothly%20in%20perfect%20order%20with%20no%20overlapping" class="example-link">Smooth Animation</a>
               </div>
             </div>
             
@@ -683,7 +771,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  // ROOT INFO - MODERN DESIGN
+  // ROOT INFO
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.send(`
     <!DOCTYPE html>
@@ -759,6 +847,55 @@ module.exports = async (req, res) => {
           border: 1px solid rgba(255,255,255,0.2);
         }
         
+        /* Info Box */
+        .info-container {
+          max-width: 800px;
+          margin: 30px auto;
+          background: rgba(255,255,255,0.1);
+          backdrop-filter: blur(10px);
+          padding: 30px;
+          border-radius: 20px;
+          border: 1px solid rgba(255,255,255,0.2);
+          color: white;
+        }
+        
+        .info-container h2 {
+          text-align: center;
+          margin-bottom: 25px;
+          color: white;
+        }
+        
+        .feature-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 20px;
+          margin-top: 20px;
+        }
+        
+        .feature-item {
+          background: rgba(255,255,255,0.15);
+          padding: 20px;
+          border-radius: 15px;
+          text-align: center;
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .feature-icon {
+          font-size: 2.5em;
+          margin-bottom: 15px;
+          color: var(--warning);
+        }
+        
+        .feature-item h3 {
+          margin-bottom: 10px;
+          font-size: 1.3em;
+        }
+        
+        .feature-item p {
+          font-size: 0.95em;
+          opacity: 0.9;
+        }
+        
         /* Cards Grid */
         .cards-grid {
           display: grid;
@@ -806,31 +943,41 @@ module.exports = async (req, res) => {
           padding: 25px;
         }
         
-        .features {
+        .card-features {
           list-style: none;
           margin-bottom: 25px;
         }
         
-        .features li {
-          padding: 8px 0;
+        .card-features li {
+          padding: 10px 0;
           display: flex;
           align-items: center;
+          color: #555;
+          border-bottom: 1px solid rgba(0,0,0,0.05);
         }
         
-        .features li i {
+        .card-features li:last-child {
+          border-bottom: none;
+        }
+        
+        .card-features li i {
           color: var(--success);
-          margin-right: 10px;
+          margin-right: 12px;
           font-size: 1.2em;
+          min-width: 24px;
         }
         
         .preview-area {
           text-align: center;
           margin: 20px 0;
+          padding: 15px;
+          background: #f8f9fa;
+          border-radius: 12px;
         }
         
         .preview-area img {
           max-width: 100%;
-          border-radius: 12px;
+          border-radius: 10px;
           box-shadow: 0 5px 15px rgba(0,0,0,0.1);
           border: 3px solid white;
         }
@@ -941,6 +1088,7 @@ module.exports = async (req, res) => {
           .hero h1 { font-size: 2.5em; }
           .cards-grid { grid-template-columns: 1fr; }
           .btn-group { flex-direction: column; }
+          .feature-grid { grid-template-columns: 1fr; }
         }
       </style>
     </head>
@@ -952,10 +1100,32 @@ module.exports = async (req, res) => {
             <h1>✨ Brat Generator</h1>
           </div>
           <div class="tagline">
-            <i class="fas fa-magic"></i> Transform Text into Beautiful Images & Animations
+            <i class="fas fa-magic"></i> Create Perfectly Aligned Text Images & Animations
           </div>
-          <p>Create stunning JPEG images and animated GIFs with word-by-word typing effects. Perfect for social media, presentations, and creative projects.</p>
+          <p>Generate stunning JPEG images and animated GIFs with word-by-word typing effects and perfect justify alignment.</p>
         </section>
+        
+        <!-- Features Info -->
+        <div class="info-container">
+          <h2>🚀 Enhanced Features</h2>
+          <div class="feature-grid">
+            <div class="feature-item">
+              <div class="feature-icon"><i class="fas fa-text-height"></i></div>
+              <h3>Optimal Font Size</h3>
+              <p>Font besar untuk teks pendek (3 lines), optimal untuk teks panjang (4 lines)</p>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon"><i class="fas fa-align-justify"></i></div>
+              <h3>Perfect Justify</h3>
+              <p>Text alignment justify yang rapi dari kiri ke kanan</p>
+            </div>
+            <div class="feature-item">
+              <div class="feature-icon"><i class="fas fa-film"></i></div>
+              <h3>Smooth Animation</h3>
+              <p>Animasi kata-per-kata tanpa tumpukan, layout teratur</p>
+            </div>
+          </div>
+        </div>
         
         <!-- Cards Grid -->
         <div class="cards-grid">
@@ -969,15 +1139,16 @@ module.exports = async (req, res) => {
               <p>High-quality justified text images</p>
             </div>
             <div class="card-content">
-              <ul class="features">
-                <li><i class="fas fa-check-circle"></i> Perfect justify alignment</li>
-                <li><i class="fas fa-check-circle"></i> Clean modern typography</li>
-                <li><i class="fas fa-check-circle"></i> Gradient backgrounds</li>
-                <li><i class="fas fa-check-circle"></i> Automatic text wrapping</li>
+              <ul class="card-features">
+                <li><i class="fas fa-check"></i> Font size 60px untuk teks pendek</li>
+                <li><i class="fas fa-check"></i> Maksimal 3-4 lines</li>
+                <li><i class="fas fa-check"></i> Justify alignment sempurna</li>
+                <li><i class="fas fa-check"></i> Background gradient premium</li>
+                <li><i class="fas fa-check"></i> Format JPEG kualitas tinggi</li>
               </ul>
               
               <div class="preview-area">
-                <img src="/brat?text=Create%20Beautiful%20Text%20Images%20With%20Perfect%20Justify%20Alignment%20And%20Clean%20Modern%20Design" 
+                <img src="/brat?text=Create%20Beautiful%20Justified%20Text%20With%20Perfect%20Alignment%20And%20Optimal%20Font%20Size%20For%20Best%20Readability" 
                      alt="JPEG Preview">
               </div>
               
@@ -1002,15 +1173,16 @@ module.exports = async (req, res) => {
               <p>Animated word-by-word typing</p>
             </div>
             <div class="card-content">
-              <ul class="features">
-                <li><i class="fas fa-check-circle"></i> Word-by-word animation</li>
-                <li><i class="fas fa-check-circle"></i> Smooth fade effects</li>
-                <li><i class="fas fa-check-circle"></i> Infinite loop</li>
-                <li><i class="fas fa-check-circle"></i> Justified text alignment</li>
+              <ul class="card-features">
+                <li><i class="fas fa-check"></i> Kata muncul satu per satu</li>
+                <li><i class="fas fa-check"></i> Layout rapi tanpa tumpukan</li>
+                <li><i class="fas fa-check"></i> Otomatis wrap ke baris baru</li>
+                <li><i class="fas fa-check"></i> Font size besar dan jelas</li>
+                <li><i class="fas fa-check"></i> Infinite loop animation</li>
               </ul>
               
               <div class="preview-area">
-                <img src="/bratanim?text=Watch%20Words%20Appear%20One%20By%20One%20With%20Smooth%20Typing%20Animation" 
+                <img src="/bratanim?text=Watch%20Words%20Appear%20One%20By%20One%20With%20Perfect%20Alignment%20And%20Smooth%20Animation%20Effects" 
                      alt="GIF Preview">
               </div>
               
@@ -1029,37 +1201,36 @@ module.exports = async (req, res) => {
         <!-- Stats -->
         <div class="stats">
           <div class="stat-item">
-            <div class="stat-number">2</div>
-            <div class="stat-label">Generators</div>
+            <div class="stat-number">60px</div>
+            <div class="stat-label">Max Font Size</div>
           </div>
           <div class="stat-item">
-            <div class="stat-number">∞</div>
-            <div class="stat-label">Animations</div>
+            <div class="stat-number">4</div>
+            <div class="stat-label">Max Lines</div>
           </div>
           <div class="stat-item">
             <div class="stat-number">100%</div>
-            <div class="stat-label">Justify Text</div>
+            <div class="stat-label">Justify Align</div>
           </div>
           <div class="stat-item">
-            <div class="stat-number">🚀</div>
+            <div class="stat-number">⚡</div>
             <div class="stat-label">Fast Processing</div>
           </div>
         </div>
         
         <!-- Footer -->
         <footer>
-          <p>Made with <i class="fas fa-heart" style="color: var(--accent);"></i> for creative minds</p>
+          <p>Made with <i class="fas fa-heart" style="color: var(--accent);"></i> for creative content creators</p>
           <div class="creator">
             Powered by <strong>XYZ Font</strong> • Created by <strong>Xyz-kings</strong>
           </div>
           <p style="margin-top: 20px; font-size: 0.9em;">
-            Simply enter text and let the magic happen. No registration required!
+            No registration required • Instant generation • Perfect for social media
           </p>
         </footer>
       </div>
       
       <script>
-        // Add some interactivity
         document.addEventListener('DOMContentLoaded', function() {
           // Add click animation to buttons
           document.querySelectorAll('.btn').forEach(btn => {
@@ -1073,28 +1244,35 @@ module.exports = async (req, res) => {
           
           // Update preview images periodically
           const previews = document.querySelectorAll('.preview-area img');
-          const texts = [
-            "Create Amazing Text Content With Our Powerful Generator Tools",
-            "Transform Your Ideas Into Beautiful Visual Content Instantly",
-            "Perfect For Social Media Marketing And Creative Projects"
+          const jpegTexts = [
+            "Create Stunning Justified Text Images With Perfect Alignment And Optimal Font Size",
+            "Generate Beautiful Text Graphics With Professional Justify Alignment In Seconds",
+            "Perfect For Social Media Posts With Clean Typography And Modern Design"
+          ];
+          
+          const gifTexts = [
+            "Watch Words Appear One By One With Smooth Animation And Perfect Alignment",
+            "Create Engaging Animated Text For Your Social Media Content Instantly",
+            "Word By Word Typing Animation With Clean Layout And Professional Design"
           ];
           
           let textIndex = 0;
           setInterval(() => {
-            textIndex = (textIndex + 1) % texts.length;
-            previews.forEach(img => {
-              const src = img.src.includes('bratanim') 
-                ? '/bratanim?text=' + encodeURIComponent(texts[textIndex])
-                : '/brat?text=' + encodeURIComponent(texts[textIndex]);
+            textIndex = (textIndex + 1) % jpegTexts.length;
+            
+            previews.forEach((img, index) => {
+              const isGif = img.src.includes('bratanim');
+              const text = isGif ? gifTexts[textIndex] : jpegTexts[textIndex];
+              const endpoint = isGif ? '/bratanim' : '/brat';
               
               // Create new image to preload
               const newImg = new Image();
               newImg.onload = function() {
-                img.src = src;
+                img.src = endpoint + '?text=' + encodeURIComponent(text);
               };
-              newImg.src = src;
+              newImg.src = endpoint + '?text=' + encodeURIComponent(text);
             });
-          }, 5000);
+          }, 6000);
         });
       </script>
     </body>
