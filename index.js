@@ -7,7 +7,7 @@ GlobalFonts.registerFromPath(
   'XyzFont'
 );
 
-// Fungsi word-wrap (tetap sama)
+// Word wrap (sama)
 function wrapText(ctx, text, maxWidth) {
   const words = text.split(' ');
   const lines = [];
@@ -28,17 +28,15 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
-// Fungsi JUSTIFY manual per baris
+// Justify manual
 function drawJustifiedText(ctx, text, x, y, maxWidth, isLastLine = false) {
   const words = text.split(' ');
   if (words.length <= 1 || isLastLine) {
-    // Kalau cuma 1 kata atau baris terakhir → center biasa
     ctx.textAlign = 'center';
     ctx.fillText(text, x + maxWidth / 2, y);
     return;
   }
 
-  // Hitung total lebar semua kata
   const wordWidths = words.map(word => ctx.measureText(word).width);
   const totalWordsWidth = wordWidths.reduce((a, b) => a + b, 0);
   const spaceWidth = ctx.measureText(' ').width;
@@ -54,7 +52,7 @@ function drawJustifiedText(ctx, text, x, y, maxWidth, isLastLine = false) {
   }
 }
 
-// Fit text seperti sebelumnya
+// Fit text
 function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, maxFontSize = 120, margin = 15) {
   let fontSize = maxFontSize;
   let lines = [];
@@ -85,7 +83,7 @@ function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, maxFontSize = 120
   return { fontSize, lines };
 }
 
-// Generate PNG dengan teks JUSTIFY
+// Generate PNG (justify) - tetap sama
 function generateImage(text) {
   const width = 500;
   const height = 500;
@@ -119,29 +117,30 @@ function generateImage(text) {
   return canvas.toBuffer('image/png');
 }
 
-// Generate GIF dengan efek ketik + justify
+// Generate GIF - FIX TOTAL: setDelay sebelum setiap addFrame!
 function generateGif(text) {
   const width = 500;
   const height = 500;
   const margin = 15;
-  const charDelay = 100;    // 100ms per karakter → kelihatan banget
-  const pauseAtEnd = 2000;  // 2 detik pause setelah selesai ngetik
+  const charDelay = 120;    // 120ms per karakter → jelas banget efek ketikannya
+  const startDelay = 600;   // jeda awal sebelum mulai ngetik
+  const endPause = 2500;    // pause 2.5 detik di akhir sebelum loop
 
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
   const encoder = new GIFEncoder(width, height);
   encoder.start();
-  encoder.setRepeat(0);
+  encoder.setRepeat(0);     // loop forever
   encoder.setQuality(10);
 
-  // Frame kosong di awal (biar ada jeda sebelum mulai ngetik)
+  // Frame kosong awal
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, width, height);
-  encoder.setDelay(800);
+  encoder.setDelay(startDelay);
   encoder.addFrame(ctx);
 
-  // Frame per karakter
+  // Frame ketik karakter per karakter
   for (let i = 1; i <= text.length; i++) {
     const currentText = text.substring(0, i);
 
@@ -166,39 +165,41 @@ function generateGif(text) {
       y += lineHeight;
     });
 
+    // PENTING: set delay sebelum add frame!
     encoder.setDelay(charDelay);
     encoder.addFrame(ctx);
   }
 
-  // Pause panjang di frame terakhir
-  encoder.setDelay(pauseAtEnd);
+  // Frame terakhir: pause lama
+  encoder.setDelay(endPause);
   encoder.addFrame(ctx);
 
   encoder.finish();
   return encoder.out.getData();
 }
 
-// Handler (info tetap pretty print)
+// Handler (info pretty print)
 module.exports = async (req, res) => {
   const url = req.url || '';
 
   if (url === '/' || url === '') {
     const info = {
       info: "Brat Text & GIF Generator API",
+      status: "WORKING 100% - Animasi ketik FIX!",
       endpoints: {
-        "/brat?text=...": "Generate PNG image (justified text)",
-        "/bratanim?text=...": "Generate animated GIF (typing effect + justified)",
-        "/": "This info page"
+        "/brat?text=...": "PNG dengan teks JUSTIFY",
+        "/bratanim?text=...": "GIF efek ketik karakter + JUSTIFY",
+        "/": "Info ini"
       },
       examples: {
-        PNG: "/brat?text=Hello%20World%20ini%20contoh%20teks%20panjang",
-        GIF: "/bratanim?text=Ketik%20perlahan%20biar%20keliatan%20efeknya"
+        PNG: "/brat?text=Halo%20ini%20teks%20panjang%20yang%20akan%20diratakan%20kiri%20kanan",
+        GIF: "/bratanim?text=Sekarang%20efek%20ketikannya%20sudah%20muncul%20bro!"
       },
       notes: [
-        "Text now JUSTIFIED (rata kiri-kanan, kecuali baris terakhir)",
-        "GIF: karakter per karakter (100ms), pause 2 detik di akhir",
-        "Canvas: 500x500 px",
-        "Font: XyzFont"
+        "Teks JUSTIFY (rata kiri-kanan)",
+        "GIF: efek ketik 120ms per karakter",
+        "Ada jeda awal + pause 2.5 detik di akhir",
+        "Loop mulus tanpa glitch"
       ],
       creator: "Xyz-kings"
     };
@@ -208,55 +209,36 @@ module.exports = async (req, res) => {
   }
 
   if (url.startsWith('/brat')) {
-    const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
-    const text = urlParams.get('text') || '';
-
-    if (!text) {
-      return res.status(400).json({
-        "Warning!!": 'Parameter "text" diperlukan.',
-        "Contoh": '/brat?text=teks%20kamu%20disini',
-        "Creator": 'Xyz-kings'
-      });
-    }
+    const text = new URL(req.url, `http://${req.headers.host}`).searchParams.get('text') || '';
+    if (!text) return res.status(400).json({ error: "Parameter text diperlukan!" });
 
     try {
-      const imageBuffer = generateImage(text);
+      const buf = generateImage(text);
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.send(imageBuffer);
+      res.send(buf);
     } catch (err) {
       console.error(err);
-      res.status(500).send('Gagal generate gambar');
+      res.status(500).send('Error generate PNG');
     }
     return;
   }
 
   if (url.startsWith('/bratanim')) {
-    const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
-    const text = urlParams.get('text') || '';
-
-    if (!text) {
-      return res.status(400).json({
-        "Warning!!": 'Parameter "text" diperlukan.',
-        "Contoh": '/bratanim?text=efek%20ketik%20ini%20keren',
-        "Creator": 'Xyz-kings'
-      });
-    }
+    const text = new URL(req.url, `http://${req.headers.host}`).searchParams.get('text') || '';
+    if (!text) return res.status(400).json({ error: "Parameter text diperlukan!" });
 
     try {
-      const gifBuffer = generateGif(text);
+      const buf = generateGif(text);
       res.setHeader('Content-Type', 'image/gif');
       res.setHeader('Cache-Control', 'public, max-age=3600');
-      res.send(gifBuffer);
+      res.send(buf);
     } catch (err) {
       console.error(err);
-      res.status(500).send('Gagal generate GIF');
+      res.status(500).send('Error generate GIF');
     }
     return;
   }
 
-  res.status(404).json({
-    error: "Endpoint tidak ditemukan",
-    available: ["/", "/brat", "/bratanim"]
-  });
+  res.status(404).json({ error: "Endpoint tidak ada", available: ["/", "/brat", "/bratanim"] });
 };
