@@ -61,7 +61,7 @@ function drawJustifiedText(ctx, lines, x, yStart, lineHeight, canvasWidth, margi
 
 // --- BRAT BASIC JPEG ---
 function generateImage(text) {
-  const width = 700, height = 500, margin = 40;
+  const width = 700, height = 700, margin = 40;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
@@ -96,7 +96,7 @@ function generateImage(text) {
 
 // --- BRAT ANIMASI GIF KATA PER KATA YANG RAPI ---
 function generateGifAnimated(text) {
-  const width = 700, height = 500, margin = 40;
+  const width = 700, height = 700, margin = 40;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
