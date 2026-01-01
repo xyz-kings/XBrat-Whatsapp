@@ -65,11 +65,8 @@ function generateImage(text) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Background gradient untuk lebih menarik
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#ffffff');
-  gradient.addColorStop(1, '#f0f0f0');
-  ctx.fillStyle = gradient;
+  // Background
+  ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, width, height);
 
   if (text.length > 100) text = text.substring(0, 100);
@@ -77,7 +74,7 @@ function generateImage(text) {
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, 3, 60);
 
   ctx.font = `bold ${fontSize}px XyzFont`;
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = 'black';
   ctx.textBaseline = 'top';
 
   const lineHeight = fontSize * 1.2;
@@ -86,7 +83,7 @@ function generateImage(text) {
   drawJustifiedText(ctx, lines, margin, yStart, lineHeight, width, margin);
 
   // Return sebagai JPEG
-  return canvas.toBuffer('image/jpeg', { quality: 0.95 });
+  return canvas.toBuffer('image/jpeg', { quality: 0.9 });
 }
 
 // --- BRAT ANIMASI GIF TYPING EFFECT ---
@@ -99,156 +96,92 @@ function generateGifAnimated(text) {
   const encoder = new GIFEncoder(width, height);
   encoder.start();
   encoder.setRepeat(0); // Loop forever
-  encoder.setDelay(80); // 80ms per frame untuk animasi ketikan yang jelas
-  encoder.setQuality(15);
-  encoder.setTransparent(null); // Tidak transparan untuk video/gif
+  encoder.setDelay(100); // 100ms per frame
+  encoder.setQuality(10);
 
   // Teks yang akan dianimasikan
   const displayText = text.length > 100 ? text.substring(0, 100) : text;
   const words = displayText.split(' ');
   
   // Setup font
-  const { fontSize, lines } = fitTextToCanvas(ctx, displayText, width, height, margin, 3, 60);
+  const { fontSize } = fitTextToCanvas(ctx, displayText, width, height, margin, 3, 60);
   ctx.font = `bold ${fontSize}px XyzFont`;
+  ctx.fillStyle = 'black';
   ctx.textBaseline = 'top';
   
   const lineHeight = fontSize * 1.2;
-  const maxLineWidth = width - margin * 2;
   
-  // Hitung posisi teks (center vertikal)
-  const totalTextHeight = lines.length * lineHeight;
+  // Hitung posisi teks (center)
+  const totalLines = Math.ceil(words.length / 3); // approx
+  const totalTextHeight = totalLines * lineHeight;
   const yStart = (height - totalTextHeight) / 2;
   
-  // Pre-calculate semua garis dengan word-wrap
-  const allLines = [];
-  let currentLine = '';
+  // ANIMASI TYPING KATA PER KATA
+  let currentText = "";
+  let wordIndex = 0;
   
-  for (const word of words) {
-    const testLine = currentLine ? currentLine + ' ' + word : word;
-    const testWidth = ctx.measureText(testLine).width;
+  // Frame pertama: background putih
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, width, height);
+  encoder.addFrame(ctx);
+  
+  // Animasi mengetik
+  while (wordIndex < words.length) {
+    // Tambah satu kata
+    currentText += (currentText ? " " : "") + words[wordIndex];
     
-    if (testWidth <= maxLineWidth || currentLine === '') {
-      currentLine = testLine;
-    } else {
-      allLines.push(currentLine);
-      currentLine = word;
-    }
-  }
-  
-  if (currentLine) {
-    allLines.push(currentLine);
-  }
-  
-  // Batasi maksimal 3 baris
-  const displayLines = allLines.slice(0, 3);
-  
-  // Animasi mengetik kata per kata
-  let currentWords = [];
-  const lineWords = displayLines.map(line => line.split(' '));
-  
-  // INFINITE LOOP ANIMASI
-  while (true) {
-    // Reset untuk loop baru
-    currentWords = [];
-    
-    // TAHAP 1: MENGETIK TEKS
-    for (let lineIdx = 0; lineIdx < lineWords.length; lineIdx++) {
-      for (let wordIdx = 0; wordIdx < lineWords[lineIdx].length; wordIdx++) {
-        // Tambah kata baru
-        currentWords.push({
-          line: lineIdx,
-          word: lineWords[lineIdx][wordIdx],
-          index: wordIdx
-        });
-        
-        // Frame 1: Gambar tanpa cursor
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = '#000000';
-        
-        // Gambar semua kata yang sudah ditampilkan
-        for (let l = 0; l <= lineIdx; l++) {
-          const wordsInLine = currentWords.filter(cw => cw.line === l).map(cw => cw.word);
-          if (wordsInLine.length === 0) continue;
-          
-          const lineText = wordsInLine.join(' ');
-          const lineY = yStart + (l * lineHeight);
-          const lineWidth = ctx.measureText(lineText).width;
-          const xStart = (width - lineWidth) / 2;
-          
-          ctx.fillText(lineText, xStart, lineY);
-        }
-        encoder.addFrame(ctx);
-        
-        // Frame 2: Gambar dengan cursor (efek ketikan)
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = '#000000';
-        
-        for (let l = 0; l <= lineIdx; l++) {
-          const wordsInLine = currentWords.filter(cw => cw.line === l).map(cw => cw.word);
-          if (wordsInLine.length === 0) continue;
-          
-          let lineText = wordsInLine.join(' ');
-          const lineY = yStart + (l * lineHeight);
-          const lineWidth = ctx.measureText(lineText).width;
-          const xStart = (width - lineWidth) / 2;
-          
-          // Tambah cursor hanya di kata terakhir yang sedang diketik
-          if (l === lineIdx && wordIdx === wordsInLine.length - 1) {
-            lineText = lineText + '|';
-          }
-          
-          ctx.fillText(lineText, xStart, lineY);
-        }
-        encoder.addFrame(ctx);
-      }
-    }
-    
-    // TAHAP 2: TEKS LENGKAP DITAMPILKAN (10 frame)
-    for (let i = 0; i < 10; i++) {
-      ctx.fillStyle = '#ffffff';
+    // Buat 2 frame untuk efek ketikan
+    for (let frame = 0; frame < 2; frame++) {
+      ctx.fillStyle = 'white';
       ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = 'black';
       
-      for (let l = 0; l < displayLines.length; l++) {
-        const lineY = yStart + (l * lineHeight);
-        const lineText = displayLines[l];
-        const lineWidth = ctx.measureText(lineText).width;
+      // Render text dengan word wrap
+      const lines = wrapText(ctx, currentText, width - margin * 2);
+      
+      // Gambar setiap baris
+      lines.forEach((line, idx) => {
+        const lineY = yStart + (idx * lineHeight);
+        const lineWidth = ctx.measureText(line).width;
         const xStart = (width - lineWidth) / 2;
         
-        ctx.fillText(lineText, xStart, lineY);
-      }
-      encoder.addFrame(ctx);
-    }
-    
-    // TAHAP 3: EFEK HILANG (fade out - 5 frame)
-    for (let fade = 0; fade <= 5; fade++) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = `rgba(0, 0, 0, ${1 - (fade / 5)})`;
-      
-      for (let l = 0; l < displayLines.length; l++) {
-        const lineY = yStart + (l * lineHeight);
-        const lineText = displayLines[l];
-        const lineWidth = ctx.measureText(lineText).width;
-        const xStart = (width - lineWidth) / 2;
+        // Tambah cursor di akhir untuk frame genap
+        let displayLine = line;
+        if (frame === 1 && idx === lines.length - 1) {
+          displayLine = line + "|";
+        }
         
-        ctx.fillText(lineText, xStart, lineY);
-      }
+        ctx.fillText(displayLine, xStart, lineY);
+      });
+      
       encoder.addFrame(ctx);
     }
     
-    // TAHAP 4: JEDA SEBELUM RESTART (3 frame kosong)
-    for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, width, height);
-      encoder.addFrame(ctx);
-    }
+    wordIndex++;
+  }
+  
+  // Tampilkan teks lengkap tanpa cursor (5 frame)
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = 'black';
     
-    // Untuk mencegah infinite loop di Node.js, kita batasi 5 loop saja
-    // Tapi karena encoder.setRepeat(0), GIF akan loop terus
-    break;
+    const lines = wrapText(ctx, currentText, width - margin * 2);
+    lines.forEach((line, idx) => {
+      const lineY = yStart + (idx * lineHeight);
+      const lineWidth = ctx.measureText(line).width;
+      const xStart = (width - lineWidth) / 2;
+      ctx.fillText(line, xStart, lineY);
+    });
+    
+    encoder.addFrame(ctx);
+  }
+  
+  // Reset dan mulai lagi
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, width, height);
+    encoder.addFrame(ctx);
   }
   
   encoder.finish();
@@ -263,17 +196,64 @@ module.exports = async (req, res) => {
   if (url.startsWith('/brat') && !url.startsWith('/bratanim')) {
     const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
     const text = urlParams.get('text');
-    if (!text) return res.status(400).json({ Warning: 'Parameter "text" diperlukan.' });
+    if (!text) {
+      // Kalau tidak ada parameter, tampilkan contoh
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Brat Image Generator</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            form { margin: 20px 0; }
+            input { padding: 8px; width: 300px; }
+            button { padding: 8px 16px; }
+            .example { margin: 10px 0; color: #666; }
+          </style>
+        </head>
+        <body>
+          <h1>Brat Image Generator</h1>
+          <p>Generate JPEG images with text</p>
+          
+          <form action="/brat" method="get">
+            <input type="text" name="text" placeholder="Enter text here..." required>
+            <button type="submit">Generate JPEG</button>
+          </form>
+          
+          <div class="example">
+            <strong>Examples:</strong><br>
+            <a href="/brat?text=Hello%20World">/brat?text=Hello World</a><br>
+            <a href="/brat?text=This%20is%20a%20test">/brat?text=This is a test</a>
+          </div>
+          
+          <p><a href="/">Back to API Info</a> | <a href="/bratanim">Try GIF Version</a></p>
+        </body>
+        </html>
+      `);
+    }
 
     try {
       const imageBuffer = generateImage(text);
-      // Content-Type: image/jpeg
+      // HEADER UNTUK TAMPIL LANGSUNG DI BROWSER
       res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Content-Disposition', 'inline; filename="brat-image.jpg"');
       res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.send(imageBuffer);
     } catch (err) {
       console.error('Gagal membuat JPEG:', err);
-      return res.status(500).send('Gagal membuat JPEG.');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Error</title></head>
+        <body>
+          <h1>Error creating JPEG</h1>
+          <p>${err.message}</p>
+          <p><a href="/brat">Try again</a></p>
+        </body>
+        </html>
+      `);
     }
   }
 
@@ -281,36 +261,211 @@ module.exports = async (req, res) => {
   if (url.startsWith('/bratanim')) {
     const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
     const text = urlParams.get('text');
-    if (!text) return res.status(400).json({ Warning: 'Parameter "text" diperlukan.' });
+    if (!text) {
+      // Kalau tidak ada parameter, tampilkan contoh
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Brat GIF Generator</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            form { margin: 20px 0; }
+            input { padding: 8px; width: 300px; }
+            button { padding: 8px 16px; }
+            .example { margin: 10px 0; color: #666; }
+            .preview { margin: 20px 0; border: 1px solid #ddd; padding: 10px; }
+          </style>
+        </head>
+        <body>
+          <h1>Brat GIF Generator</h1>
+          <p>Generate animated GIF with typing effect</p>
+          
+          <form action="/bratanim" method="get">
+            <input type="text" name="text" placeholder="Enter text for typing animation..." required>
+            <button type="submit">Generate GIF</button>
+          </form>
+          
+          <div class="example">
+            <strong>Examples:</strong><br>
+            <a href="/bratanim?text=Typing%20effect%20kata%20per%20kata">/bratanim?text=Typing effect kata per kata</a><br>
+            <a href="/bratanim?text=Hello%20World%20this%20is%20animated">/bratanim?text=Hello World this is animated</a>
+          </div>
+          
+          <div class="preview">
+            <strong>Preview:</strong><br>
+            <img src="/bratanim?text=Hello%20World" alt="Preview GIF" style="max-width: 500px; border: 1px solid #ccc;">
+          </div>
+          
+          <p><a href="/">Back to API Info</a> | <a href="/brat">Try JPEG Version</a></p>
+        </body>
+        </html>
+      `);
+    }
 
     try {
       const gifBuffer = generateGifAnimated(text);
-      // Content-Type: video/gif (sesuai permintaan)
-      res.setHeader('Content-Type', 'video/gif');
+      // HEADER UNTUK TAMPIL LANGSUNG DI BROWSER
+      res.setHeader('Content-Type', 'image/gif');
+      res.setHeader('Content-Disposition', 'inline; filename="brat-animation.gif"');
       res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.send(gifBuffer);
     } catch (err) {
       console.error('Gagal membuat GIF:', err);
-      return res.status(500).send('Gagal membuat GIF.');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head><title>Error</title></head>
+        <body>
+          <h1>Error creating GIF</h1>
+          <p>${err.message}</p>
+          <p><a href="/bratanim">Try again</a></p>
+        </body>
+        </html>
+      `);
     }
   }
 
   // ROOT INFO
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  return res.status(200).send(JSON.stringify({
-    info: "Brat Text & GIF Generator API",
-    endpoints: {
-      "/brat?text=...": "Generate JPEG image",
-      "/bratanim?text=...": "Generate animated typing GIF"
-    },
-    examples: {
-      JPEG: "/brat?text=Halo%20dunia",
-      GIF: "/bratanim?text=Typing%20effect%20kata%20per%20kata"
-    },
-    content_types: {
-      "/brat": "image/jpeg",
-      "/bratanim": "video/gif"
-    },
-    creator: "Xyz-kings"
-  }, null, 2));
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Brat Text Generator API</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          max-width: 800px;
+          margin: 0 auto;
+          padding: 20px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          min-height: 100vh;
+        }
+        .container {
+          background: rgba(255, 255, 255, 0.1);
+          backdrop-filter: blur(10px);
+          border-radius: 15px;
+          padding: 30px;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+          color: white;
+          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        .endpoint {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 10px;
+          padding: 15px;
+          margin: 15px 0;
+          border-left: 4px solid #4CAF50;
+        }
+        .endpoint h3 {
+          margin-top: 0;
+          color: #4CAF50;
+        }
+        code {
+          background: rgba(0, 0, 0, 0.3);
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-family: 'Courier New', monospace;
+        }
+        .example-box {
+          background: rgba(0, 0, 0, 0.2);
+          padding: 15px;
+          border-radius: 10px;
+          margin: 20px 0;
+        }
+        a {
+          color: #4CAF50;
+          text-decoration: none;
+          font-weight: bold;
+        }
+        a:hover {
+          text-decoration: underline;
+        }
+        .btn {
+          display: inline-block;
+          background: #4CAF50;
+          color: white;
+          padding: 10px 20px;
+          border-radius: 5px;
+          margin: 5px;
+          text-decoration: none;
+        }
+        .btn:hover {
+          background: #45a049;
+        }
+        .preview {
+          display: flex;
+          gap: 20px;
+          flex-wrap: wrap;
+          margin: 20px 0;
+        }
+        .preview-item {
+          text-align: center;
+          background: rgba(255, 255, 255, 0.1);
+          padding: 10px;
+          border-radius: 8px;
+        }
+        .preview-item img {
+          max-width: 200px;
+          border: 2px solid white;
+          border-radius: 5px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🎨 Brat Text & GIF Generator API</h1>
+        <p>Generate text images and animated GIFs with typing effect</p>
+        
+        <div class="preview">
+          <div class="preview-item">
+            <p><strong>JPEG Example</strong></p>
+            <img src="/brat?text=Hello%20World" alt="JPEG Preview">
+          </div>
+          <div class="preview-item">
+            <p><strong>GIF Example</strong></p>
+            <img src="/bratanim?text=Typing%20Animation" alt="GIF Preview">
+          </div>
+        </div>
+        
+        <div class="endpoint">
+          <h3>📸 JPEG Endpoint</h3>
+          <p><code>GET /brat?text=Your+Text+Here</code></p>
+          <p>Content-Type: <code>image/jpeg</code></p>
+          <a class="btn" href="/brat">Try JPEG Generator</a>
+          <a class="btn" href="/brat?text=Hello%20World%20Example">Example</a>
+        </div>
+        
+        <div class="endpoint">
+          <h3>🎬 GIF Endpoint</h3>
+          <p><code>GET /bratanim?text=Your+Text+Here</code></p>
+          <p>Content-Type: <code>image/gif</code></p>
+          <a class="btn" href="/bratanim">Try GIF Generator</a>
+          <a class="btn" href="/bratanim?text=Typing%20effect%20kata%20per%20kata">Example</a>
+        </div>
+        
+        <div class="example-box">
+          <h3>📚 Examples:</h3>
+          <ul>
+            <li><a href="/brat?text=Hello%20World">/brat?text=Hello World</a></li>
+            <li><a href="/brat?text=This%20is%20a%20test">/brat?text=This is a test</a></li>
+            <li><a href="/bratanim?text=Typing%20animation">/bratanim?text=Typing animation</a></li>
+            <li><a href="/bratanim?text=Hello%20World%20GIF">/bratanim?text=Hello World GIF</a></li>
+          </ul>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.3);">
+          <p><strong>Note:</strong> Images will display directly in your browser, no download required!</p>
+          <p>Made with ❤️ by <strong>Xyz-kings</strong></p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
 };
