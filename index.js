@@ -158,7 +158,7 @@ function generateGifAnimated(text) {
 
   // Tentukan ukuran font berdasarkan jumlah kata
   const tempText = words.slice(0, Math.min(8, words.length)).join(' ');
-  const maxLines = 4; // MAKSIMAL 4 LINES
+  const maxLines = 5; // MAKSIMAL 4 LINES
   const maxFontSize = 180;
   
   const { fontSize } = fitTextToCanvas(ctx, tempText, width, height, margin, maxLines, maxFontSize);
