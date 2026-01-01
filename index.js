@@ -117,7 +117,7 @@ function generateImage(text) {
   // Tentukan maxLines (3 untuk normal, 4 jika panjang)
   const textLength = text.length;
   const maxLines = textLength > 80 ? 5 : 3;
-  const maxFontSize = 180;
+  const maxFontSize = 140;
 
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, maxLines, maxFontSize);
 
@@ -159,7 +159,7 @@ function generateGifAnimated(text) {
   // Tentukan ukuran font berdasarkan jumlah kata
   const tempText = words.slice(0, Math.min(8, words.length)).join(' ');
   const maxLines = 5; // MAKSIMAL 4 LINES
-  const maxFontSize = 180;
+  const maxFontSize = 140;
   
   const { fontSize } = fitTextToCanvas(ctx, tempText, width, height, margin, maxLines, maxFontSize);
   ctx.font = `${fontSize}px XyzFont`;
