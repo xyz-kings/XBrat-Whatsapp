@@ -78,7 +78,7 @@ if (text.length > 300) text = text.substring(0, 300);
   // Tentukan maxLines berdasarkan panjang text
   const textLength = text.length;
   const maxLines = textLength > 150 ? 5 : 4;
-  const maxFontSize = textLength > 200 ? 100 : 220;
+  const maxFontSize = textLength > 400 ? 100 : 220;
 
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, maxLines, maxFontSize);
 
