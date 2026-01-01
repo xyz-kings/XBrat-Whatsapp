@@ -116,7 +116,7 @@ function generateImage(text) {
 
   // Tentukan maxLines (3 untuk normal, 4 jika panjang)
   const textLength = text.length;
-  const maxLines = textLength > 80 ? 5 : 3;
+  const maxLines = 4;
   const maxFontSize = 140;
 
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, maxLines, maxFontSize);
