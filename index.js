@@ -228,21 +228,19 @@ function generateGifAnimated(text) {
     encoder.addFrame(ctx);
   }
   
-// Langsung fade-out 1 frame setelah kata terakhir
-const fadeFrames = 1; // 1 frame biar langsung fade
-for (let fade = 0; fade < fadeFrames; fade++) {
+  // Tahan teks lengkap (10 frame)
+  for (let i = 0; i < 4; i++) {
   // Background putih polos
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
-
+  
   ctx.font = `${fontSize}px XyzFont`;
-  ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / fadeFrames)})`;
-
-  // Gambar semua kata
+  ctx.fillStyle = '#2d3436';
+  
   wordPositions.forEach(pos => {
     ctx.fillText(pos.word, pos.x, pos.y);
   });
-
+  
   encoder.addFrame(ctx);
 }
   
