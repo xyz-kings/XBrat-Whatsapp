@@ -142,7 +142,7 @@ function generateImageResponsive(text) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
-  if (text.length > 200) text = text.substring(0, 200);
+  if (text.length > 1200) text = text.substring(0, 1200);
 
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin);
 
