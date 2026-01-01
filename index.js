@@ -78,7 +78,7 @@ if (text.length > 300) text = text.substring(0, 300);
   // Tentukan maxLines berdasarkan panjang text
   const textLength = text.length;
   const maxLines = textLength > 150 ? 5 : 4;
-  const maxFontSize = textLength > 200 ? 100 : 180;
+  const maxFontSize = textLength > 200 ? 100 : 220;
 
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, maxLines, maxFontSize);
 
@@ -116,7 +116,7 @@ function generateGifAnimated(text) {
   // Tentukan ukuran font berdasarkan jumlah kata
   const tempText = words.slice(0, Math.min(10, words.length)).join(' ');
   const maxLines = Math.min(Math.ceil(words.length / 3), 4); // Maksimal 5 lines
-  const maxFontSize = words.length > 25 ? 100 : 180;
+  const maxFontSize = words.length > 25 ? 100 : 220;
   
   const { fontSize } = fitTextToCanvas(ctx, tempText, width, height, margin, maxLines, maxFontSize);
   ctx.font = `${fontSize}px XyzFont`;
@@ -453,7 +453,7 @@ module.exports = async (req, res) => {
                 </div>
                 <div class="spec-item">
                   <div class="spec-label">Font Size</div>
-                  <div class="spec-value">180px Max</div>
+                  <div class="spec-value">220px Max</div>
                 </div>
                 <div class="spec-item">
                   <div class="spec-label">Alignment</div>
@@ -735,7 +735,7 @@ module.exports = async (req, res) => {
                 </div>
                 <div class="spec-item">
                   <div class="spec-label">Font Size</div>
-                  <div class="spec-value">180px Max</div>
+                  <div class="spec-value">220px Max</div>
                 </div>
                 <div class="spec-item">
                   <div class="spec-label">Start Position</div>
