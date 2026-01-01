@@ -59,13 +59,17 @@ function drawJustifiedText(ctx, lines, x, yStart, lineHeight, canvasWidth, margi
   });
 }
 
-// --- BRAT BASIC PNG ---
+// --- BRAT BASIC JPEG ---
 function generateImage(text) {
   const width = 500, height = 500, margin = 20;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  ctx.fillStyle = 'white';
+  // Background gradient untuk lebih menarik
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#ffffff');
+  gradient.addColorStop(1, '#f0f0f0');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
   if (text.length > 100) text = text.substring(0, 100);
@@ -73,7 +77,7 @@ function generateImage(text) {
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, 3, 60);
 
   ctx.font = `bold ${fontSize}px XyzFont`;
-  ctx.fillStyle = 'black';
+  ctx.fillStyle = '#000000';
   ctx.textBaseline = 'top';
 
   const lineHeight = fontSize * 1.2;
@@ -81,7 +85,8 @@ function generateImage(text) {
 
   drawJustifiedText(ctx, lines, margin, yStart, lineHeight, width, margin);
 
-  return canvas.toBuffer('image/png');
+  // Return sebagai JPEG
+  return canvas.toBuffer('image/jpeg', { quality: 0.95 });
 }
 
 // --- BRAT ANIMASI GIF TYPING EFFECT ---
@@ -94,9 +99,9 @@ function generateGifAnimated(text) {
   const encoder = new GIFEncoder(width, height);
   encoder.start();
   encoder.setRepeat(0); // Loop forever
-  encoder.setDelay(50); // 50ms per frame untuk animasi lebih smooth
-  encoder.setQuality(10);
-  encoder.setTransparent(0xFFFFFF); // Background putih jadi transparan
+  encoder.setDelay(80); // 80ms per frame untuk animasi ketikan yang jelas
+  encoder.setQuality(15);
+  encoder.setTransparent(null); // Tidak transparan untuk video/gif
 
   // Teks yang akan dianimasikan
   const displayText = text.length > 100 ? text.substring(0, 100) : text;
@@ -105,154 +110,145 @@ function generateGifAnimated(text) {
   // Setup font
   const { fontSize, lines } = fitTextToCanvas(ctx, displayText, width, height, margin, 3, 60);
   ctx.font = `bold ${fontSize}px XyzFont`;
-  ctx.fillStyle = 'black';
   ctx.textBaseline = 'top';
   
   const lineHeight = fontSize * 1.2;
   const maxLineWidth = width - margin * 2;
   
-  // Hitung posisi teks (center vertikal dan horizontal)
+  // Hitung posisi teks (center vertikal)
   const totalTextHeight = lines.length * lineHeight;
   const yStart = (height - totalTextHeight) / 2;
   
   // Pre-calculate semua garis dengan word-wrap
   const allLines = [];
   let currentLine = '';
-  let currentLineWidth = 0;
   
   for (const word of words) {
-    const wordWidth = ctx.measureText(word + ' ').width;
+    const testLine = currentLine ? currentLine + ' ' + word : word;
+    const testWidth = ctx.measureText(testLine).width;
     
-    if (currentLineWidth + wordWidth <= maxLineWidth || currentLine === '') {
-      currentLine += (currentLine ? ' ' : '') + word;
-      currentLineWidth += wordWidth;
+    if (testWidth <= maxLineWidth || currentLine === '') {
+      currentLine = testLine;
     } else {
-      allLines.push({ text: currentLine, width: currentLineWidth });
+      allLines.push(currentLine);
       currentLine = word;
-      currentLineWidth = wordWidth;
     }
   }
   
   if (currentLine) {
-    allLines.push({ text: currentLine, width: currentLineWidth });
+    allLines.push(currentLine);
   }
   
   // Batasi maksimal 3 baris
   const displayLines = allLines.slice(0, 3);
   
-  // TYPING ANIMATION
+  // Animasi mengetik kata per kata
   let currentWords = [];
-  let currentLineIndex = 0;
-  let currentWordIndex = 0;
-  let typingFrames = 0;
+  const lineWords = displayLines.map(line => line.split(' '));
   
-  // Loop animasi (untuk infinite loop)
-  const totalLoops = 2; // Jumlah loop sebelum restart typing
-  let currentLoop = 0;
-  
-  while (currentLoop < totalLoops) {
+  // INFINITE LOOP ANIMASI
+  while (true) {
     // Reset untuk loop baru
     currentWords = [];
-    currentLineIndex = 0;
-    currentWordIndex = 0;
     
-    // ANIMASI PENGETIKAN
-    const lineWords = displayLines.map(line => line.text.split(' '));
-    
-    // Animasi mengetik kata per kata
-    for (let l = 0; l < lineWords.length; l++) {
-      for (let w = 0; w < lineWords[l].length; w++) {
-        // Tambah kata baru ke display
-        currentWords.push({ line: l, word: lineWords[l][w] });
+    // TAHAP 1: MENGETIK TEKS
+    for (let lineIdx = 0; lineIdx < lineWords.length; lineIdx++) {
+      for (let wordIdx = 0; wordIdx < lineWords[lineIdx].length; wordIdx++) {
+        // Tambah kata baru
+        currentWords.push({
+          line: lineIdx,
+          word: lineWords[lineIdx][wordIdx],
+          index: wordIdx
+        });
         
-        // Buat 3 frame untuk efek ketikan per kata
-        for (let frame = 0; frame < 3; frame++) {
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, width, height);
-          ctx.fillStyle = 'black';
-          
-          // Gambar semua kata yang sudah ditampilkan
-          const displayedWordsByLine = {};
-          
-          for (const cw of currentWords) {
-            if (!displayedWordsByLine[cw.line]) {
-              displayedWordsByLine[cw.line] = [];
-            }
-            displayedWordsByLine[cw.line].push(cw.word);
-          }
-          
-          // Gambar setiap baris
-          for (const lineNum in displayedWordsByLine) {
-            const lineY = yStart + (parseInt(lineNum) * lineHeight);
-            const lineText = displayedWordsByLine[lineNum].join(' ');
-            
-            // Center horizontal
-            const lineWidth = ctx.measureText(lineText).width;
-            const xStart = (width - lineWidth) / 2;
-            
-            // Efek cursor berkedip untuk kata terakhir
-            let displayText = lineText;
-            if (parseInt(lineNum) === l && displayedWordsByLine[lineNum].length === w + 1 && frame % 2 === 0) {
-              displayText = lineText + '|'; // Tambah cursor
-            }
-            
-            ctx.fillText(displayText, xStart, lineY);
-          }
-          
-          encoder.addFrame(ctx);
-        }
-      }
-    }
-    
-    // Tahan teks lengkap sebentar (20 frame)
-    for (let i = 0; i < 20; i++) {
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = 'black';
-      
-      // Gambar semua baris lengkap
-      for (let l = 0; l < displayLines.length; l++) {
-        const lineY = yStart + (l * lineHeight);
-        const lineText = displayLines[l].text;
-        const lineWidth = ctx.measureText(lineText).width;
-        const xStart = (width - lineWidth) / 2;
-        
-        ctx.fillText(lineText, xStart, lineY);
-      }
-      
-      encoder.addFrame(ctx);
-    }
-    
-    // ANIMASI PENGHAPUSAN (fade out)
-    for (let fadeFrame = 0; fadeFrame < 10; fadeFrame++) {
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = 'black';
-      ctx.globalAlpha = 1 - (fadeFrame / 10);
-      
-      for (let l = 0; l < displayLines.length; l++) {
-        const lineY = yStart + (l * lineHeight);
-        const lineText = displayLines[l].text;
-        const lineWidth = ctx.measureText(lineText).width;
-        const xStart = (width - lineWidth) / 2;
-        
-        ctx.fillText(lineText, xStart, lineY);
-      }
-      
-      ctx.globalAlpha = 1;
-      encoder.addFrame(ctx);
-    }
-    
-    currentLoop++;
-    
-    // Jika bukan loop terakhir, tambah jeda singkat sebelum restart
-    if (currentLoop < totalLoops) {
-      for (let i = 0; i < 5; i++) {
-        ctx.fillStyle = 'white';
+        // Frame 1: Gambar tanpa cursor
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#000000';
+        
+        // Gambar semua kata yang sudah ditampilkan
+        for (let l = 0; l <= lineIdx; l++) {
+          const wordsInLine = currentWords.filter(cw => cw.line === l).map(cw => cw.word);
+          if (wordsInLine.length === 0) continue;
+          
+          const lineText = wordsInLine.join(' ');
+          const lineY = yStart + (l * lineHeight);
+          const lineWidth = ctx.measureText(lineText).width;
+          const xStart = (width - lineWidth) / 2;
+          
+          ctx.fillText(lineText, xStart, lineY);
+        }
+        encoder.addFrame(ctx);
+        
+        // Frame 2: Gambar dengan cursor (efek ketikan)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#000000';
+        
+        for (let l = 0; l <= lineIdx; l++) {
+          const wordsInLine = currentWords.filter(cw => cw.line === l).map(cw => cw.word);
+          if (wordsInLine.length === 0) continue;
+          
+          let lineText = wordsInLine.join(' ');
+          const lineY = yStart + (l * lineHeight);
+          const lineWidth = ctx.measureText(lineText).width;
+          const xStart = (width - lineWidth) / 2;
+          
+          // Tambah cursor hanya di kata terakhir yang sedang diketik
+          if (l === lineIdx && wordIdx === wordsInLine.length - 1) {
+            lineText = lineText + '|';
+          }
+          
+          ctx.fillText(lineText, xStart, lineY);
+        }
         encoder.addFrame(ctx);
       }
     }
+    
+    // TAHAP 2: TEKS LENGKAP DITAMPILKAN (10 frame)
+    for (let i = 0; i < 10; i++) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#000000';
+      
+      for (let l = 0; l < displayLines.length; l++) {
+        const lineY = yStart + (l * lineHeight);
+        const lineText = displayLines[l];
+        const lineWidth = ctx.measureText(lineText).width;
+        const xStart = (width - lineWidth) / 2;
+        
+        ctx.fillText(lineText, xStart, lineY);
+      }
+      encoder.addFrame(ctx);
+    }
+    
+    // TAHAP 3: EFEK HILANG (fade out - 5 frame)
+    for (let fade = 0; fade <= 5; fade++) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = `rgba(0, 0, 0, ${1 - (fade / 5)})`;
+      
+      for (let l = 0; l < displayLines.length; l++) {
+        const lineY = yStart + (l * lineHeight);
+        const lineText = displayLines[l];
+        const lineWidth = ctx.measureText(lineText).width;
+        const xStart = (width - lineWidth) / 2;
+        
+        ctx.fillText(lineText, xStart, lineY);
+      }
+      encoder.addFrame(ctx);
+    }
+    
+    // TAHAP 4: JEDA SEBELUM RESTART (3 frame kosong)
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      encoder.addFrame(ctx);
+    }
+    
+    // Untuk mencegah infinite loop di Node.js, kita batasi 5 loop saja
+    // Tapi karena encoder.setRepeat(0), GIF akan loop terus
+    break;
   }
   
   encoder.finish();
@@ -263,20 +259,21 @@ function generateGifAnimated(text) {
 module.exports = async (req, res) => {
   const url = req.url || '';
 
-  // BRAT BASIC PNG
-  if (url.startsWith('/brat')) {
+  // BRAT BASIC JPEG
+  if (url.startsWith('/brat') && !url.startsWith('/bratanim')) {
     const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
     const text = urlParams.get('text');
     if (!text) return res.status(400).json({ Warning: 'Parameter "text" diperlukan.' });
 
     try {
       const imageBuffer = generateImage(text);
-      res.setHeader('Content-Type', 'image/png');
+      // Content-Type: image/jpeg
+      res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.send(imageBuffer);
     } catch (err) {
-      console.error('Gagal membuat PNG:', err);
-      return res.status(500).send('Gagal membuat PNG.');
+      console.error('Gagal membuat JPEG:', err);
+      return res.status(500).send('Gagal membuat JPEG.');
     }
   }
 
@@ -288,7 +285,8 @@ module.exports = async (req, res) => {
 
     try {
       const gifBuffer = generateGifAnimated(text);
-      res.setHeader('Content-Type', 'image/gif');
+      // Content-Type: video/gif (sesuai permintaan)
+      res.setHeader('Content-Type', 'video/gif');
       res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.send(gifBuffer);
     } catch (err) {
@@ -302,16 +300,16 @@ module.exports = async (req, res) => {
   return res.status(200).send(JSON.stringify({
     info: "Brat Text & GIF Generator API",
     endpoints: {
-      "/brat?text=...": "Generate PNG image",
+      "/brat?text=...": "Generate JPEG image",
       "/bratanim?text=...": "Generate animated typing GIF"
     },
     examples: {
-      PNG: "/brat?text=Hello%20World",
-      GIF: "/bratanim?text=Hello%20World"
+      JPEG: "/brat?text=Halo%20dunia",
+      GIF: "/bratanim?text=Typing%20effect%20kata%20per%20kata"
     },
-    features: {
-      "PNG": "Text dengan justify alignment",
-      "GIF": "Typing animation kata-per-kata dengan efek cursor, infinite loop, center alignment"
+    content_types: {
+      "/brat": "image/jpeg",
+      "/bratanim": "video/gif"
     },
     creator: "Xyz-kings"
   }, null, 2));
