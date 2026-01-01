@@ -27,14 +27,14 @@ function wrapText(ctx, text, maxWidth) {
 }
 
 // Fit font size
-function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 40, maxLines = 6, maxFontSize = 290) {
+function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 40, maxLines = 6, maxFontSize = 400) {
   let fontSize = maxFontSize;
   let lines = [];
 
   do {
     ctx.font = `${fontSize}px XyzFont`; // Tidak bold
     lines = wrapText(ctx, text, canvasWidth - margin * 2);
-    if (lines.length > maxLines) fontSize -= 2;
+    if (lines.length > maxLines) fontSize -= 1; // lebih halus
     else break;
   } while (fontSize > 12);
 
