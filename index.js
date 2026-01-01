@@ -41,14 +41,12 @@ function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, maxFontSize = 120
     const lineHeight = fontSize * 1.2;
     const textHeight = lines.length * lineHeight;
 
-    // cari line terpanjang
     let maxLineWidth = 0;
     for (const line of lines) {
       const w = ctx.measureText(line).width;
       if (w > maxLineWidth) maxLineWidth = w;
     }
 
-    // cek muat secara vertikal + horizontal
     if (
       textHeight <= canvasHeight - margin * 2 &&
       maxLineWidth <= canvasWidth - margin * 2
@@ -62,7 +60,7 @@ function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, maxFontSize = 120
   return { fontSize, lines };
 }
 
-// Fungsi untuk membuat gambar PNG
+// Fungsi untuk membuat gambar PNG (tetap sama)
 function generateImage(text) {
   const width = 500;
   const height = 500;
@@ -70,30 +68,24 @@ function generateImage(text) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // background putih
   ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, width, height);
 
-  // limit teks
   if (text.length > 100) {
     text = text.substring(0, 100);
   }
 
-  // cari ukuran font + wrap
   const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, 120, margin);
 
-  // set font final
   ctx.font = `bold ${fontSize}px XyzFont`;
   ctx.fillStyle = 'black';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // hitung posisi awal (center vertical di area margin)
   const lineHeight = fontSize * 1.2;
   const totalHeight = lines.length * lineHeight;
   let y = height / 2 - totalHeight / 2 + fontSize / 2;
 
-  // tulis tiap line
   lines.forEach(line => {
     ctx.fillText(line, width / 2, y);
     y += lineHeight;
@@ -102,26 +94,30 @@ function generateImage(text) {
   return canvas.toBuffer('image/png');
 }
 
-// Fungsi untuk membuat GIF animasi
+// Fungsi untuk membuat GIF animasi dengan efek ketik karakter per karakter
 function generateGif(text) {
   const width = 500;
   const height = 500;
   const margin = 15;
-  const delay = 500; // ms per frame
+  const charDelay = 80; // ms per karakter (bisa diubah sesuai selera)
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  const words = text.split(' ');
   const encoder = new GIFEncoder(width, height);
   encoder.start();
-  encoder.setRepeat(0); // loop forever
-  encoder.setDelay(delay);
+  encoder.setRepeat(0);
+  encoder.setDelay(charDelay);
   encoder.setQuality(10);
 
-  for (let i = 1; i <= words.length; i++) {
-    const currentText = words.slice(0, i).join(' ');
+  // Tambahkan frame kosong di awal (opsional, biar ada jeda sebelum mulai ngetik)
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, 0, width, height);
+  encoder.addFrame(ctx);
 
-    // background putih
+  // Efek ketik karakter per karakter
+  for (let i = 1; i <= text.length; i++) {
+    const currentText = text.substring(0, i);
+
     ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, width, height);
 
@@ -144,6 +140,10 @@ function generateGif(text) {
     encoder.addFrame(ctx);
   }
 
+  // Frame terakhir ditahan lebih lama (opsional)
+  encoder.setDelay(1000); // 1 detik untuk frame akhir
+  encoder.addFrame(ctx);
+
   encoder.finish();
   return encoder.out.getData();
 }
@@ -151,29 +151,34 @@ function generateGif(text) {
 // Handler utama
 module.exports = async (req, res) => {
   const url = req.url || '';
-  
-  // Route: / (root) - tampilkan info
+
+  // Route: / (root) - tampilkan info dengan pretty print
   if (url === '/' || url === '') {
-    return res.status(200).json({
-      "info": "Brat Text & GIF Generator API",
-      "endpoints": {
+    const info = {
+      info: "Brat Text & GIF Generator API",
+      endpoints: {
         "/brat?text=...": "Generate PNG image with text",
-        "/bratanim?text=...": "Generate animated GIF with text",
+        "/bratanim?text=...": "Generate animated GIF with typing effect",
         "/": "This info page"
       },
-      "examples": {
-        "PNG": "/brat?text=Hello%20World",
-        "GIF": "/bratanim?text=This%20is%20animated%20text",
+      examples: {
+        PNG: "/brat?text=Hello%20World",
+        GIF: "/bratanim?text=This%20is%20animated%20text",
         "with special chars": "/brat?text=Custom%20text%20here!"
       },
-      "notes": [
+      notes: [
         "Text will be automatically wrapped and resized to fit canvas",
-        "Maximum 100 characters for PNG",
+        "Maximum 100 characters for PNG (GIF bisa lebih panjang)",
         "Font: XyzFont (custom)",
-        "Canvas size: 500x500 pixels"
+        "Canvas size: 500x500 pixels",
+        "GIF now uses character-by-character typing effect"
       ],
-      "creator": "Xyz-kings"
-    });
+      creator: "Xyz-kings"
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    // Pretty print dengan indentasi 2 spasi
+    return res.status(200).send(JSON.stringify(info, null, 2));
   }
 
   // Route: /brat - generate PNG
@@ -201,7 +206,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // Route: /bratanim - generate GIF
+  // Route: /bratanim - generate GIF dengan efek ketik
   if (url.startsWith('/bratanim')) {
     const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
     const text = urlParams.get('text');
@@ -228,7 +233,7 @@ module.exports = async (req, res) => {
 
   // Route tidak ditemukan
   res.status(404).json({
-    "error": "Endpoint tidak ditemukan",
-    "available_endpoints": ["/", "/brat", "/bratanim"]
+    error: "Endpoint tidak ditemukan",
+    available_endpoints: ["/", "/brat", "/bratanim"]
   });
 };
