@@ -206,15 +206,12 @@ function generateGifAnimated(text) {
   encoder.addFrame(ctx);
 }
   
-  // Animasi kata per kata
-  for (let frame = 0; frame <= totalWords; frame++) {
-    // Clear canvas dengan background
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f5f7fa');
-    gradient.addColorStop(1, '#c3cfe2');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-    
+// Animasi kata per kata
+for (let frame = 0; frame <= totalWords; frame++) {
+  // Clear canvas dengan background putih
+  ctx.fillStyle = '#ffffff'; // putih polos
+  ctx.fillRect(0, 0, width, height);
+
     // Setup font
     ctx.font = `${fontSize}px XyzFont`;
     ctx.fillStyle = '#2d3436';
