@@ -253,12 +253,13 @@ function generateGifAnimated(text) {
   }
   
   // Fade out (8 frame)
-  for (let fade = 0; fade <= 2; fade++) {
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f5f7fa');
-    gradient.addColorStop(1, '#c3cfe2');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
+  const fadeFrames = 3; // total frame fade-out
+for (let fade = 0; fade < fadeFrames; fade++) {
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#f5f7fa');
+  gradient.addColorStop(1, '#c3cfe2');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
     
     ctx.font = `${fontSize}px XyzFont`;
     ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / 8)})`;
