@@ -253,7 +253,7 @@ function generateGifAnimated(text) {
   }
   
 // Fade out langsung setelah kata terakhir muncul
-const fadeFrames = 3; // jumlah frame fade-out
+const fadeFrames = 1; // jumlah frame fade-out
 for (let fade = 0; fade < fadeFrames; fade++) {
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, '#f5f7fa');
