@@ -84,74 +84,177 @@ function generateImage(text) {
   return canvas.toBuffer('image/png');
 }
 
-// --- BRAT ANIMASI GIF (fade+slide) ---
+// --- BRAT ANIMASI GIF TYPING EFFECT ---
 function generateGifAnimated(text) {
   const width = 500, height = 500, margin = 20;
-  const framesPerWord = 10; // jumlah frame per kata untuk animasi halus
-  const delay = 100; // 100ms tiap frame
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  const words = text.split(' ');
+  // Setup GIF encoder
   const encoder = new GIFEncoder(width, height);
   encoder.start();
-  encoder.setRepeat(0); // loop forever
-  encoder.setDelay(delay);
+  encoder.setRepeat(0); // Loop forever
+  encoder.setDelay(50); // 50ms per frame untuk animasi lebih smooth
   encoder.setQuality(10);
+  encoder.setTransparent(0xFFFFFF); // Background putih jadi transparan
 
-  const positions = [
-    { x: margin, y: margin, align: 'left' },
-    { x: width / 2, y: height / 2, align: 'center' },
-    { x: width - margin, y: height / 2, align: 'right' },
-    { x: width / 2, y: height - margin, align: 'center' }
-  ];
-
-  for (let loop = 0; loop < 2; loop++) { // ulang 2 kali
-    for (const pos of positions) {
-      let { fontSize } = fitTextToCanvas(ctx, text, width, height, margin, 3, 60);
-      ctx.font = `bold ${fontSize}px XyzFont`;
-      ctx.textBaseline = 'top';
-      const lineHeight = fontSize * 1.2;
-
-      let displayedWords = [];
-      for (let i = 0; i < words.length; i++) {
-        displayedWords.push(words[i]);
-
-        for (let f = 0; f < framesPerWord; f++) {
+  // Teks yang akan dianimasikan
+  const displayText = text.length > 100 ? text.substring(0, 100) : text;
+  const words = displayText.split(' ');
+  
+  // Setup font
+  const { fontSize, lines } = fitTextToCanvas(ctx, displayText, width, height, margin, 3, 60);
+  ctx.font = `bold ${fontSize}px XyzFont`;
+  ctx.fillStyle = 'black';
+  ctx.textBaseline = 'top';
+  
+  const lineHeight = fontSize * 1.2;
+  const maxLineWidth = width - margin * 2;
+  
+  // Hitung posisi teks (center vertikal dan horizontal)
+  const totalTextHeight = lines.length * lineHeight;
+  const yStart = (height - totalTextHeight) / 2;
+  
+  // Pre-calculate semua garis dengan word-wrap
+  const allLines = [];
+  let currentLine = '';
+  let currentLineWidth = 0;
+  
+  for (const word of words) {
+    const wordWidth = ctx.measureText(word + ' ').width;
+    
+    if (currentLineWidth + wordWidth <= maxLineWidth || currentLine === '') {
+      currentLine += (currentLine ? ' ' : '') + word;
+      currentLineWidth += wordWidth;
+    } else {
+      allLines.push({ text: currentLine, width: currentLineWidth });
+      currentLine = word;
+      currentLineWidth = wordWidth;
+    }
+  }
+  
+  if (currentLine) {
+    allLines.push({ text: currentLine, width: currentLineWidth });
+  }
+  
+  // Batasi maksimal 3 baris
+  const displayLines = allLines.slice(0, 3);
+  
+  // TYPING ANIMATION
+  let currentWords = [];
+  let currentLineIndex = 0;
+  let currentWordIndex = 0;
+  let typingFrames = 0;
+  
+  // Loop animasi (untuk infinite loop)
+  const totalLoops = 2; // Jumlah loop sebelum restart typing
+  let currentLoop = 0;
+  
+  while (currentLoop < totalLoops) {
+    // Reset untuk loop baru
+    currentWords = [];
+    currentLineIndex = 0;
+    currentWordIndex = 0;
+    
+    // ANIMASI PENGETIKAN
+    const lineWords = displayLines.map(line => line.text.split(' '));
+    
+    // Animasi mengetik kata per kata
+    for (let l = 0; l < lineWords.length; l++) {
+      for (let w = 0; w < lineWords[l].length; w++) {
+        // Tambah kata baru ke display
+        currentWords.push({ line: l, word: lineWords[l][w] });
+        
+        // Buat 3 frame untuk efek ketikan per kata
+        for (let frame = 0; frame < 3; frame++) {
           ctx.fillStyle = 'white';
           ctx.fillRect(0, 0, width, height);
-
           ctx.fillStyle = 'black';
-
-          const currentText = displayedWords.join(' ');
-          const curLines = wrapText(ctx, currentText, width - margin * 2);
-
-          let yStart;
-          if (pos.align === 'left') yStart = pos.y;
-          else if (pos.align === 'center') yStart = pos.y - (curLines.length * lineHeight) / 2;
-          else if (pos.align === 'right') yStart = pos.y;
-
-          // slide & fade effect
-          curLines.forEach((line, idx) => {
-            const wordsInLine = line.split(' ');
-            let xPos = pos.align === 'right' ? width - margin : margin;
-            wordsInLine.forEach((word, wIdx) => {
-              const alpha = Math.min(1, (f + 1) / framesPerWord); // fade in
-              ctx.globalAlpha = alpha;
-              let xDraw = xPos;
-              if (pos.align === 'center') xDraw = width / 2;
-              ctx.fillText(word, xDraw, yStart + idx * lineHeight + (framesPerWord - f)); // slide sedikit dari bawah
-              xPos += ctx.measureText(word).width + 5; // spacing kata
-            });
-          });
-
-          ctx.globalAlpha = 1;
+          
+          // Gambar semua kata yang sudah ditampilkan
+          const displayedWordsByLine = {};
+          
+          for (const cw of currentWords) {
+            if (!displayedWordsByLine[cw.line]) {
+              displayedWordsByLine[cw.line] = [];
+            }
+            displayedWordsByLine[cw.line].push(cw.word);
+          }
+          
+          // Gambar setiap baris
+          for (const lineNum in displayedWordsByLine) {
+            const lineY = yStart + (parseInt(lineNum) * lineHeight);
+            const lineText = displayedWordsByLine[lineNum].join(' ');
+            
+            // Center horizontal
+            const lineWidth = ctx.measureText(lineText).width;
+            const xStart = (width - lineWidth) / 2;
+            
+            // Efek cursor berkedip untuk kata terakhir
+            let displayText = lineText;
+            if (parseInt(lineNum) === l && displayedWordsByLine[lineNum].length === w + 1 && frame % 2 === 0) {
+              displayText = lineText + '|'; // Tambah cursor
+            }
+            
+            ctx.fillText(displayText, xStart, lineY);
+          }
+          
           encoder.addFrame(ctx);
         }
       }
     }
+    
+    // Tahan teks lengkap sebentar (20 frame)
+    for (let i = 0; i < 20; i++) {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'black';
+      
+      // Gambar semua baris lengkap
+      for (let l = 0; l < displayLines.length; l++) {
+        const lineY = yStart + (l * lineHeight);
+        const lineText = displayLines[l].text;
+        const lineWidth = ctx.measureText(lineText).width;
+        const xStart = (width - lineWidth) / 2;
+        
+        ctx.fillText(lineText, xStart, lineY);
+      }
+      
+      encoder.addFrame(ctx);
+    }
+    
+    // ANIMASI PENGHAPUSAN (fade out)
+    for (let fadeFrame = 0; fadeFrame < 10; fadeFrame++) {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'black';
+      ctx.globalAlpha = 1 - (fadeFrame / 10);
+      
+      for (let l = 0; l < displayLines.length; l++) {
+        const lineY = yStart + (l * lineHeight);
+        const lineText = displayLines[l].text;
+        const lineWidth = ctx.measureText(lineText).width;
+        const xStart = (width - lineWidth) / 2;
+        
+        ctx.fillText(lineText, xStart, lineY);
+      }
+      
+      ctx.globalAlpha = 1;
+      encoder.addFrame(ctx);
+    }
+    
+    currentLoop++;
+    
+    // Jika bukan loop terakhir, tambah jeda singkat sebelum restart
+    if (currentLoop < totalLoops) {
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, width, height);
+        encoder.addFrame(ctx);
+      }
+    }
   }
-
+  
   encoder.finish();
   return encoder.out.getData();
 }
@@ -200,17 +303,16 @@ module.exports = async (req, res) => {
     info: "Brat Text & GIF Generator API",
     endpoints: {
       "/brat?text=...": "Generate PNG image",
-      "/bratanim?text=...": "Generate animated GIF"
+      "/bratanim?text=...": "Generate animated typing GIF"
     },
     examples: {
       PNG: "/brat?text=Hello%20World",
       GIF: "/bratanim?text=Hello%20World"
     },
-    notes: [
-      "PNG basic tetap ada",
-      "GIF animasi kata-per-kata + fade+slide",
-      "Margin 20px, font auto-fit"
-    ],
+    features: {
+      "PNG": "Text dengan justify alignment",
+      "GIF": "Typing animation kata-per-kata dengan efek cursor, infinite loop, center alignment"
+    },
     creator: "Xyz-kings"
   }, null, 2));
 };
