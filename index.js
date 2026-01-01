@@ -226,7 +226,7 @@ for (let frame = 0; frame <= totalWords; frame++) {
   }
   
   // Tahan teks lengkap (10 frame)
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 1; i++) {
   // Background putih polos
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
