@@ -107,7 +107,7 @@ function generateGifAnimated(text) {
   const encoder = new GIFEncoder(width, height);
   encoder.start();
   encoder.setRepeat(0); // Infinite loop
-  encoder.setDelay(100); // 100ms per kata
+  encoder.setDelay(40); // 100ms per kata
   encoder.setQuality(15);
 
   // Persiapan text
