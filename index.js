@@ -107,7 +107,7 @@ function generateGifAnimated(text) {
   const encoder = new GIFEncoder(width, height);
   encoder.start();
   encoder.setRepeat(0); // Infinite loop
-  encoder.setDelay(40); // 100ms per kata
+  encoder.setDelay(100); // 100ms per kata
   encoder.setQuality(15);
 
   // Persiapan text
@@ -118,7 +118,7 @@ function generateGifAnimated(text) {
 
   // Tentukan ukuran font berdasarkan jumlah kata
   const tempText = words.slice(0, Math.min(10, words.length)).join(' ');
-  const maxLines = Math.min(Math.ceil(words.length / 4), 5); // Maksimal 5 lines
+  const maxLines = Math.min(Math.ceil(words.length / 3), 4); // Maksimal 5 lines
   const maxFontSize = words.length > 25 ? 100 : 180;
   
   const { fontSize } = fitTextToCanvas(ctx, tempText, width, height, margin, maxLines, maxFontSize);
@@ -253,7 +253,7 @@ function generateGifAnimated(text) {
   }
   
   // Fade out (8 frame)
-  for (let fade = 0; fade <= 8; fade++) {
+  for (let fade = 0; fade <= 2; fade++) {
     const gradient = ctx.createLinearGradient(0, 0, width, height);
     gradient.addColorStop(0, '#f5f7fa');
     gradient.addColorStop(1, '#c3cfe2');
