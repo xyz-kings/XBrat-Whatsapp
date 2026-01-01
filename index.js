@@ -135,7 +135,7 @@ function drawJustifiedText(ctx, lines, margin, lineHeight) {
 
 // --- BRAT BASIC JPEG ---
 function generateImage(text) {
-  const width = 800, height = 800, margin = 50;
+  const width = 1200, height = 1200, margin = 50;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
