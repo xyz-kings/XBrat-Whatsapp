@@ -199,15 +199,12 @@ function generateGifAnimated(text) {
   // ANIMASI: Tampilkan kata per kata dengan urutan yang benar
   const totalWords = wordPositions.length;
   
-  // Frame pertama: hanya background
-  {
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f5f7fa');
-    gradient.addColorStop(1, '#c3cfe2');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-    encoder.addFrame(ctx);
-  }
+// Frame pertama: hanya background putih
+{
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  encoder.addFrame(ctx);
+}
   
   // Animasi kata per kata
   for (let frame = 0; frame <= totalWords; frame++) {
