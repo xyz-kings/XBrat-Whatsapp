@@ -233,21 +233,19 @@ function generateGifAnimated(text) {
   
   // Tahan teks lengkap (10 frame)
   for (let i = 0; i < 10; i++) {
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, '#f5f7fa');
-    gradient.addColorStop(1, '#c3cfe2');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-    
-    ctx.font = `${fontSize}px XyzFont`;
-    ctx.fillStyle = '#2d3436';
-    
-    wordPositions.forEach(pos => {
-      ctx.fillText(pos.word, pos.x, pos.y);
-    });
-    
-    encoder.addFrame(ctx);
-  }
+  // Background putih polos
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
+  
+  ctx.font = `${fontSize}px XyzFont`;
+  ctx.fillStyle = '#2d3436';
+  
+  wordPositions.forEach(pos => {
+    ctx.fillText(pos.word, pos.x, pos.y);
+  });
+  
+  encoder.addFrame(ctx);
+}
   
 // Fade out langsung setelah kata terakhir muncul
 const fadeFrames = 1; // langsung 1 frame biar cepet fade-out
