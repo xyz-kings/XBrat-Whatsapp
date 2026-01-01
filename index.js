@@ -152,8 +152,8 @@ function generateGifAnimated(text) {
 
   // Persiapan text
   const words = text.split(' ');
-  if (words.length > 35) {
-    words.length = 30; // Batasi maksimal 30 kata
+  if (words.length > 50) {
+    words.length = 50; // Batasi maksimal 30 kata
   }
 
   // Tentukan ukuran font berdasarkan jumlah kata
