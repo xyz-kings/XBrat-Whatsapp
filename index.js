@@ -5,7 +5,7 @@ const path = require('path');
 // Register font
 GlobalFonts.registerFromPath(path.join(__dirname, 'xyzfont.ttf'), 'XyzFont');
 
-// Word-wrap untuk justify dengan ellipsis di akhir jika perlu
+// Word-wrap untuk justify TANPA ellipsis
 function wrapText(ctx, text, maxWidth, maxLines = 5) {
   const words = text.split(' ');
   const lines = [];
@@ -19,26 +19,11 @@ function wrapText(ctx, text, maxWidth, maxLines = 5) {
       lines.push(line);
       line = words[i];
       
-      // Jika sudah mencapai maxLines, tambah ellipsis di line terakhir
+      // Hentikan jika sudah mencapai maxLines
       if (lines.length === maxLines) {
-        // Coba tambah ellipsis di line terakhir jika masih ada kata lagi
-        if (i < words.length - 1) {
-          const lastLine = lines[maxLines - 1];
-          let ellipsisLine = lastLine;
-          
-          // Kurangi kata satu per satu sampai muat ellipsis
-          while (ctx.measureText(ellipsisLine + '...').width > maxWidth && ellipsisLine.length > 3) {
-            const lastSpace = ellipsisLine.lastIndexOf(' ');
-            if (lastSpace > 0) {
-              ellipsisLine = ellipsisLine.substring(0, lastSpace);
-            } else {
-              ellipsisLine = ellipsisLine.substring(0, ellipsisLine.length - 1);
-            }
-          }
-          
-          if (ctx.measureText(ellipsisLine + '...').width <= maxWidth) {
-            lines[maxLines - 1] = ellipsisLine + '...';
-          }
+        // Masukkan kata terakhir jika masih muat di line terakhir
+        if (ctx.measureText(line).width <= maxWidth) {
+          lines.push(line);
         }
         break;
       }
@@ -48,31 +33,47 @@ function wrapText(ctx, text, maxWidth, maxLines = 5) {
   }
   
   if (line && lines.length < maxLines) {
-    // Cek apakah line terakhir perlu ellipsis (harusnya tidak karena ini line terakhir asli)
     lines.push(line);
   }
   
   return lines;
 }
 
-// Fit font size dengan logika cerdas
-function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 50, maxFontSize = 180, minFontSize = 140) {
-  let fontSize = maxFontSize;
-  let lines = [];
+// Fit font size dengan logika cerdas: lebih sedikit kata = lebih besar font
+function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 50) {
   const words = text.split(' ');
-  const isShortText = words.length <= 10 || text.length <= 50;
+  const wordCount = words.length;
   
-  // Tentukan maxLines berdasarkan panjang text
+  // Tentukan maxLines berdasarkan jumlah kata (3-5 lines)
   let maxLines;
-  if (isShortText) {
-    maxLines = 3; // Text pendek: maksimal 3 lines
-  } else if (words.length <= 20) {
-    maxLines = 4; // Text sedang: maksimal 4 lines
+  if (wordCount <= 5) {
+    maxLines = 3; // Sangat pendek: 3 lines
+  } else if (wordCount <= 15) {
+    maxLines = 4; // Sedang: 4 lines
   } else {
-    maxLines = 5; // Text panjang: maksimal 5 lines
+    maxLines = 5; // Panjang: 5 lines
   }
-
-  do {
+  
+  // Tentukan font size awal berdasarkan jumlah kata
+  // Kurang kata = lebih besar font, lebih banyak kata = lebih kecil font
+  let fontSize;
+  if (wordCount <= 3) {
+    fontSize = 180; // Sangat pendek: font maksimal
+  } else if (wordCount <= 8) {
+    fontSize = 170; // Pendek: font besar
+  } else if (wordCount <= 15) {
+    fontSize = 160; // Sedang: font medium
+  } else if (wordCount <= 25) {
+    fontSize = 150; // Agak panjang: font agak kecil
+  } else {
+    fontSize = 140; // Panjang: font minimum
+  }
+  
+  let lines = [];
+  let attempts = 0;
+  const maxAttempts = 20; // Maksimal percobaan
+  
+  while (attempts < maxAttempts) {
     ctx.font = `${fontSize}px XyzFont`;
     lines = wrapText(ctx, text, canvasWidth - margin * 2, maxLines);
     
@@ -81,27 +82,26 @@ function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 50, maxF
     const totalTextHeight = lines.length * lineHeight;
     const maxTextHeight = canvasHeight - margin * 2;
     
-    // Kondisi berhenti: text muat DAN font size masih di atas minimum
-    if (totalTextHeight <= maxTextHeight && lines.length <= maxLines && fontSize >= minFontSize) {
+    // Jika text muat DAN jumlah lines tidak melebihi maxLines
+    if (totalTextHeight <= maxTextHeight && lines.length <= maxLines) {
       break;
     }
     
-    fontSize -= 2; // Kurangi font size sedikit demi sedikit
+    // Jika tidak muat, kurangi font size
+    fontSize -= 2;
+    attempts++;
     
-    // Jika font size sudah terlalu kecil, break
-    if (fontSize < minFontSize) {
-      fontSize = minFontSize;
-      // Coba lagi dengan font size minimum
-      ctx.font = `${fontSize}px XyzFont`;
-      lines = wrapText(ctx, text, canvasWidth - margin * 2, maxLines);
+    // Jangan biarkan font size terlalu kecil
+    if (fontSize < 140) {
+      fontSize = 140;
       break;
     }
-  } while (true);
-
+  }
+  
   return { fontSize, lines, maxLines };
 }
 
-// Draw justified text dengan ellipsis handling
+// Draw justified text
 function drawJustifiedText(ctx, lines, margin, lineHeight) {
   const canvasWidth = ctx.canvas.width;
   const canvasHeight = ctx.canvas.height;
@@ -113,14 +113,10 @@ function drawJustifiedText(ctx, lines, margin, lineHeight) {
   lines.forEach((line, idx) => {
     const y = startY + (idx * lineHeight);
     
-    // Cek apakah line sudah mengandung ellipsis
-    const hasEllipsis = line.endsWith('...');
-    const displayLine = line;
-    
-    const words = displayLine.split(' ');
-    if (words.length === 1 || hasEllipsis) {
-      // Single word atau sudah ada ellipsis, draw biasa
-      ctx.fillText(displayLine, margin, y);
+    const words = line.split(' ');
+    if (words.length === 1) {
+      // Single word, draw biasa di margin kiri
+      ctx.fillText(line, margin, y);
       return;
     }
     
@@ -147,8 +143,7 @@ function generateImage(text) {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
-  // Tidak perlu batasi panjang text, system akan handle sendiri
-  const { fontSize, lines, maxLines } = fitTextToCanvas(ctx, text, width, height, margin);
+  const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin);
 
   ctx.font = `${fontSize}px XyzFont`;
   ctx.fillStyle = '#000000';
@@ -156,7 +151,7 @@ function generateImage(text) {
 
   const lineHeight = fontSize * 1.2;
 
-  // Draw dengan ellipsis handling
+  // Draw text
   drawJustifiedText(ctx, lines, margin, lineHeight);
 
   return canvas.toBuffer('image/jpeg', { quality: 0.95 });
@@ -176,7 +171,7 @@ function generateGifAnimated(text) {
   encoder.setQuality(20);
 
   // Tentukan font size dan lines
-  const { fontSize, lines, maxLines } = fitTextToCanvas(ctx, text, width, height, margin);
+  const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin);
   ctx.font = `${fontSize}px XyzFont`;
   ctx.fillStyle = '#000000';
   ctx.textBaseline = 'top';
@@ -184,18 +179,11 @@ function generateGifAnimated(text) {
   const lineHeight = fontSize * 1.2;
   const maxLineWidth = width - margin * 2;
 
-  // Bangun semua kata dari lines yang sudah di-wrap
+  // Bangun semua kata dari lines
   const allWords = [];
   lines.forEach(line => {
-    if (line.endsWith('...')) {
-      // Jika line berakhir dengan ellipsis, pecah dan tambah ellipsis sebagai kata terakhir
-      const words = line.substring(0, line.length - 3).split(' ');
-      words.forEach(word => allWords.push(word));
-      allWords.push('...'); // Tambah ellipsis sebagai kata terpisah
-    } else {
-      const words = line.split(' ');
-      words.forEach(word => allWords.push(word));
-    }
+    const words = line.split(' ');
+    words.forEach(word => allWords.push(word));
   });
 
   // PRE-CALCULATE: Tentukan posisi setiap kata
@@ -203,34 +191,11 @@ function generateGifAnimated(text) {
   let currentLineWords = [];
   let currentLineText = '';
   let currentLineIndex = 0;
-  let currentY = margin; // Mulai dari margin atas
+  let currentY = margin;
   
   // Proses setiap kata untuk menentukan posisinya
   for (let i = 0; i < allWords.length; i++) {
     const word = allWords[i];
-    
-    // Handle ellipsis khusus
-    if (word === '...') {
-      // Ellipsis selalu di akhir line
-      if (currentLineWords.length > 0) {
-        const lineText = currentLineWords.join(' ');
-        const lineWidth = ctx.measureText(lineText).width;
-        const ellipsisWidth = ctx.measureText('...').width;
-        
-        // Tambah ellipsis di posisi yang tepat
-        wordPositions.push({
-          word: '...',
-          line: currentLineIndex,
-          x: margin + lineWidth + (currentLineWords.length > 1 ? 5 : 0), // Sedikit spacing
-          y: currentY,
-          indexInLine: currentLineWords.length,
-          totalInLine: currentLineWords.length + 1,
-          isEllipsis: true
-        });
-      }
-      continue;
-    }
-    
     const testLine = currentLineText ? currentLineText + ' ' + word : word;
     const testWidth = ctx.measureText(testLine).width;
     
@@ -249,8 +214,7 @@ function generateGifAnimated(text) {
           x: currentX,
           y: currentY,
           indexInLine: j,
-          totalInLine: currentLineWords.length,
-          isEllipsis: false
+          totalInLine: currentLineWords.length
         });
         currentX += ctx.measureText(currentLineWords[j]).width + spaceWidth;
       }
@@ -260,29 +224,6 @@ function generateGifAnimated(text) {
       currentLineWords = [word];
       currentLineText = word;
       currentY += lineHeight;
-      
-      // STOP jika sudah mencapai maxLines atau keluar dari canvas
-      if (currentLineIndex >= maxLines || currentY + lineHeight > height - margin) {
-        // Jika masih ada kata lain, tambah ellipsis
-        if (i < allWords.length - 1) {
-          const lineText = currentLineWords.join(' ');
-          const lineWidth = ctx.measureText(lineText).width;
-          const ellipsisWidth = ctx.measureText('...').width;
-          
-          if (margin + lineWidth + ellipsisWidth < width - margin) {
-            wordPositions.push({
-              word: '...',
-              line: currentLineIndex - 1,
-              x: margin + lineWidth + 5,
-              y: currentY - lineHeight,
-              indexInLine: currentLineWords.length,
-              totalInLine: currentLineWords.length + 1,
-              isEllipsis: true
-            });
-          }
-        }
-        break;
-      }
     } else {
       // Tambah ke baris saat ini
       currentLineWords.push(word);
@@ -290,8 +231,8 @@ function generateGifAnimated(text) {
     }
   }
   
-  // Simpan baris terakhir jika masih ada kata
-  if (currentLineWords.length > 0 && currentLineIndex < maxLines && currentY <= height - margin) {
+  // Simpan baris terakhir
+  if (currentLineWords.length > 0) {
     const totalWidth = currentLineWords.reduce((sum, w) => sum + ctx.measureText(w).width, 0);
     const spaceCount = currentLineWords.length - 1;
     const spaceWidth = spaceCount > 0 ? (maxLineWidth - totalWidth) / spaceCount : 0;
@@ -304,8 +245,7 @@ function generateGifAnimated(text) {
         x: currentX,
         y: currentY,
         indexInLine: j,
-        totalInLine: currentLineWords.length,
-        isEllipsis: false
+        totalInLine: currentLineWords.length
       });
       currentX += ctx.measureText(currentLineWords[j]).width + spaceWidth;
     }
@@ -426,44 +366,40 @@ module.exports = async (req, res) => {
               color: #7f8c8d;
               font-size: 1em;
             }
-            .info-box {
-              background: #f8f9fa;
-              padding: 12px 15px;
+            .logic-box {
+              background: #f0f7ff;
+              padding: 15px;
               border-radius: 8px;
               margin: 15px 0;
               border-left: 3px solid #3498db;
             }
-            .info-box h4 {
+            .logic-box h4 {
               color: #2980b9;
-              margin-bottom: 6px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              font-size: 0.95em;
+              margin-bottom: 10px;
+              font-size: 1em;
             }
-            .specs {
+            .logic-grid {
               display: grid;
-              grid-template-columns: repeat(3, 1fr);
+              grid-template-columns: repeat(2, 1fr);
               gap: 10px;
-              margin: 15px 0;
+              margin-top: 10px;
             }
-            .spec-item {
+            .logic-item {
               background: white;
               padding: 10px;
               border-radius: 6px;
               text-align: center;
               border: 1px solid #e0e0e0;
+            }
+            .logic-label {
               font-size: 0.9em;
-            }
-            .spec-label {
-              font-size: 0.8em;
-              color: #7f8c8d;
-              margin-bottom: 4px;
-            }
-            .spec-value {
-              font-size: 0.95em;
-              font-weight: bold;
               color: #2c3e50;
+              font-weight: bold;
+              margin-bottom: 5px;
+            }
+            .logic-value {
+              font-size: 0.85em;
+              color: #7f8c8d;
             }
             .form-container {
               background: #f8f9fa;
@@ -523,20 +459,8 @@ module.exports = async (req, res) => {
             .btn-primary:hover {
               background: #2980b9;
             }
-            .url-display {
-              background: #2c3e50;
-              color: white;
-              padding: 10px;
-              border-radius: 6px;
-              margin: 12px 0;
-              font-family: 'Courier New', monospace;
-              font-size: 13px;
-              word-break: break-all;
-              display: none;
-            }
             .preview-container {
               margin: 20px 0;
-              display: none;
             }
             .preview-header {
               display: flex;
@@ -564,29 +488,6 @@ module.exports = async (req, res) => {
               border-radius: 4px;
               max-height: 350px;
               border: 1px solid #eee;
-            }
-            .response-info {
-              margin: 20px 0;
-            }
-            .response-header {
-              background: #2c3e50;
-              color: white;
-              padding: 8px 12px;
-              border-radius: 6px 6px 0 0;
-              font-weight: 600;
-              font-size: 0.95em;
-            }
-            .response-body {
-              background: #f8f9fa;
-              padding: 12px;
-              border-radius: 0 0 6px 6px;
-              border: 1px solid #ddd;
-              border-top: none;
-              font-family: 'Courier New', monospace;
-              font-size: 12px;
-              white-space: pre-wrap;
-              max-height: 180px;
-              overflow-y: auto;
             }
             .examples {
               margin-top: 25px;
@@ -630,94 +531,61 @@ module.exports = async (req, res) => {
               align-items: center;
               justify-content: center;
             }
-            .warning {
-              background: #fff3cd;
-              border: 1px solid #ffeaa7;
-              color: #856404;
-              padding: 8px 12px;
-              border-radius: 6px;
-              margin: 10px 0;
+            .info-text {
+              color: #7f8c8d;
               font-size: 0.9em;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-            }
-            .warning-icon {
-              color: #f39c12;
-            }
-            .auto-adjust-info {
-              background: #e8f4fd;
-              border: 1px solid #b3e0ff;
-              color: #0066cc;
-              padding: 10px;
-              border-radius: 6px;
-              margin: 10px 0;
-              font-size: 0.9em;
-            }
-            .auto-adjust-info ul {
-              margin: 5px 0 0 15px;
-              padding: 0;
-            }
-            .auto-adjust-info li {
-              margin-bottom: 3px;
+              margin-top: 5px;
+              font-style: italic;
             }
             @media (max-width: 768px) {
-              .specs { grid-template-columns: repeat(2, 1fr); }
+              .logic-grid { grid-template-columns: 1fr; }
               .nav { flex-direction: column; }
               .container { padding: 15px; }
-            }
-            @media (max-width: 480px) {
-              .specs { grid-template-columns: 1fr; }
             }
           </style>
           <script>
             function updatePreview() {
               const textInput = document.getElementById('text');
-              const urlDisplay = document.getElementById('urlDisplay');
               const previewImage = document.getElementById('previewImage');
-              const responseBody = document.getElementById('responseBody');
               const previewContainer = document.getElementById('previewContainer');
+              const wordCountDisplay = document.getElementById('wordCount');
+              const fontSizeDisplay = document.getElementById('fontSize');
+              const lineCountDisplay = document.getElementById('lineCount');
               
               const text = textInput.value.trim();
+              const wordCount = text === '' ? 0 : text.split(' ').length;
               
               if (text.length > 0) {
                 const encodedText = encodeURIComponent(text);
                 const url = '/brat?text=' + encodedText;
                 
-                // Update URL display
-                urlDisplay.textContent = window.location.origin + url;
-                urlDisplay.style.display = 'block';
-                
                 // Update preview image dengan cache bust
                 previewImage.src = url + '&t=' + Date.now();
                 previewContainer.style.display = 'block';
                 
-                // Update response info
-                const headers = [
-                  'HTTP/1.1 200 OK',
-                  'Content-Type: image/jpeg',
-                  'Content-Length: [dynamic]',
-                  'Cache-Control: public, max-age=3600',
-                  'Content-Disposition: inline; filename="brat-image.jpg"'
-                ].join('\\n');
+                // Update logic info
+                wordCountDisplay.textContent = wordCount + ' words';
                 
-                // Tentukan info berdasarkan panjang text
-                const wordCount = text.split(' ').length;
-                let textInfo;
-                if (wordCount <= 10) {
-                  textInfo = 'Short text (≤10 words): 3 lines, font up to 180px';
-                } else if (wordCount <= 20) {
-                  textInfo = 'Medium text (11-20 words): 4 lines, font auto-adjusted';
-                } else {
-                  textInfo = 'Long text (>20 words): 5 lines max, font down to 140px, ellipsis if needed';
-                }
+                // Tentukan font size berdasarkan jumlah kata
+                let fontSize;
+                if (wordCount <= 3) fontSize = '180px';
+                else if (wordCount <= 8) fontSize = '170px';
+                else if (wordCount <= 15) fontSize = '160px';
+                else if (wordCount <= 25) fontSize = '150px';
+                else fontSize = '140px';
+                fontSizeDisplay.textContent = fontSize;
                 
-                const body = \`JPEG 800×800 • Auto font size (140-180px) • 3-5 lines • \${textInfo}\`;
-                responseBody.textContent = headers + '\\n\\n' + body;
+                // Tentukan line count
+                let lineCount;
+                if (wordCount <= 5) lineCount = '3 lines';
+                else if (wordCount <= 15) lineCount = '4 lines';
+                else lineCount = '5 lines';
+                lineCountDisplay.textContent = lineCount;
               } else {
-                urlDisplay.style.display = 'none';
                 previewContainer.style.display = 'none';
-                responseBody.textContent = 'Enter text to see preview and response info';
+                wordCountDisplay.textContent = '0 words';
+                fontSizeDisplay.textContent = 'N/A';
+                lineCountDisplay.textContent = 'N/A';
               }
             }
             
@@ -750,13 +618,6 @@ module.exports = async (req, res) => {
               textInput.addEventListener('paste', function() {
                 setTimeout(updatePreview, 100);
               });
-              
-              // Enter key to generate
-              textInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && e.ctrlKey) {
-                  generateImage();
-                }
-              });
             });
           </script>
         </head>
@@ -764,60 +625,50 @@ module.exports = async (req, res) => {
           <div class="container">
             <div class="header">
               <h1><span class="icon">🎨</span> Brat JPEG Generator</h1>
-              <p>800×800 • Smart Font Sizing (140-180px) • Auto Line Adjustment (3-5 lines)</p>
+              <p>800×800 • Smart Font Scaling • 3-5 Lines</p>
             </div>
             
-            <div class="auto-adjust-info">
-              <strong>✨ Smart Text Adjustment:</strong>
-              <ul>
-                <li><strong>Short text</strong> (≤10 words): 3 lines max, font up to 180px</li>
-                <li><strong>Medium text</strong> (11-20 words): 4 lines max, font auto-adjusted</li>
-                <li><strong>Long text</strong> (>20 words): 5 lines max, font down to 140px</li>
-                <li>Auto ellipsis (...) at the end if text doesn't fit</li>
-                <li>No character limit - system adjusts automatically</li>
-              </ul>
-            </div>
-            
-            <div class="info-box">
-              <h4><span class="icon">📐</span> Canvas Specifications:</h4>
-              <div class="specs">
-                <div class="spec-item">
-                  <div class="spec-label">Size</div>
-                  <div class="spec-value">800×800 px</div>
+            <div class="logic-box">
+              <h4>📈 Smart Scaling Logic:</h4>
+              <p class="info-text">Fewer words = Larger font • More words = Smaller font • 3-5 lines maximum</p>
+              <div class="logic-grid">
+                <div class="logic-item">
+                  <div class="logic-label">≤3 words</div>
+                  <div class="logic-value">180px font • 3 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Font Range</div>
-                  <div class="spec-value">140-180px</div>
+                <div class="logic-item">
+                  <div class="logic-label">4-8 words</div>
+                  <div class="logic-value">170px font • 3-4 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Lines</div>
-                  <div class="spec-value">3-5 lines</div>
+                <div class="logic-item">
+                  <div class="logic-label">9-15 words</div>
+                  <div class="logic-value">160px font • 4 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Background</div>
-                  <div class="spec-value">White</div>
+                <div class="logic-item">
+                  <div class="logic-label">16-25 words</div>
+                  <div class="logic-value">150px font • 4-5 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Text Color</div>
-                  <div class="spec-value">Black</div>
+                <div class="logic-item">
+                  <div class="logic-label">26+ words</div>
+                  <div class="logic-value">140px font • 5 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Overflow</div>
-                  <div class="spec-value">Auto ellipsis</div>
+                <div class="logic-item">
+                  <div class="logic-label">Canvas</div>
+                  <div class="logic-value">800×800 • 50px margin</div>
                 </div>
               </div>
             </div>
             
             <div class="form-container">
               <div class="form-group">
-                <label for="text">Enter your text (any length):</label>
+                <label for="text">Enter your text:</label>
                 <textarea 
                   id="text" 
                   name="text" 
                   rows="4" 
-                  placeholder="Type any amount of text here... System will automatically adjust font size and lines to fit perfectly."
+                  placeholder="Type your text here... Font size and lines will adjust automatically based on word count."
                   oninput="updatePreview()"
-                >This is a smart text system that adjusts font size and line count based on content length</textarea>
+                >Text size adjusts based on word count</textarea>
               </div>
               <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <button type="button" class="btn btn-primary" onclick="updatePreview()">
@@ -828,45 +679,31 @@ module.exports = async (req, res) => {
                 </button>
               </div>
               
-              <div id="urlDisplay" class="url-display">
-                ${host}/brat?text=This%20is%20a%20smart%20text%20system%20that%20adjusts%20font%20size%20and%20line%20count%20based%20on%20content%20length
+              <div style="margin-top: 15px; font-size: 0.9em; color: #7f8c8d;">
+                <div><strong>Current text:</strong> <span id="wordCount">2 words</span></div>
+                <div><strong>Font size:</strong> <span id="fontSize">170px</span></div>
+                <div><strong>Lines:</strong> <span id="lineCount">3 lines</span></div>
               </div>
             </div>
             
             <div class="preview-container" id="previewContainer">
               <div class="preview-header">
                 <h3><span class="icon">👁️</span> Live Preview</h3>
-                <small style="color: #7f8c8d; font-size: 0.85em;">Updates automatically with smart adjustment</small>
+                <small style="color: #7f8c8d; font-size: 0.85em;">Font size adjusts automatically</small>
               </div>
               <div class="preview-area">
-                <img id="previewImage" src="/brat?text=This%20is%20a%20smart%20text%20system%20that%20adjusts%20font%20size%20and%20line%20count%20based%20on%20content%20length" 
-                     alt="JPEG Preview"
-                     onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'padding:40px;color:#7f8c8d;\\'>Preview loading...</div>';">
-              </div>
-            </div>
-            
-            <div class="response-info">
-              <div class="response-header">
-                <span class="icon">📡</span> HTTP Response
-              </div>
-              <div class="response-body" id="responseBody">
-                HTTP/1.1 200 OK
-                Content-Type: image/jpeg
-                Content-Length: [dynamic]
-                Cache-Control: public, max-age=3600
-                Content-Disposition: inline; filename="brat-image.jpg"
-                
-                JPEG 800×800 • Auto font size (140-180px) • 3-5 lines • Medium text (11-20 words): 4 lines, font auto-adjusted
+                <img id="previewImage" src="/brat?text=Text%20size%20adjusts%20based%20on%20word%20count" 
+                     alt="JPEG Preview">
               </div>
             </div>
             
             <div class="examples">
               <h3><span class="icon">💡</span> Test Examples:</h3>
               <div class="example-links">
-                <button class="example-link" onclick="loadExample('Hello'); return false;">Very Short</button>
-                <button class="example-link" onclick="loadExample('This is a medium length text example'); return false;">Medium</button>
-                <button class="example-link" onclick="loadExample('This is a very long text that will test the automatic adjustment system to see how it handles multiple lines and reduces font size when necessary to fit everything perfectly within the canvas bounds'); return false;">Long Text</button>
-                <button class="example-link" onclick="loadExample('Extremely long text that definitely requires font size reduction and line increase with possible ellipsis at the end to indicate truncation when the content exceeds the maximum allowed space within the defined canvas dimensions and formatting constraints'); return false;">Extreme Length</button>
+                <button class="example-link" onclick="loadExample('Hello'); return false;">Very Short (1 word)</button>
+                <button class="example-link" onclick="loadExample('This is a short text'); return false;">Short (4 words)</button>
+                <button class="example-link" onclick="loadExample('This is a medium length text example with several words'); return false;">Medium (8 words)</button>
+                <button class="example-link" onclick="loadExample('This is a longer text example that demonstrates how the font size decreases as the word count increases while maintaining readability within the canvas boundaries'); return false;">Long (15+ words)</button>
               </div>
             </div>
             
@@ -953,44 +790,40 @@ module.exports = async (req, res) => {
               color: #7f8c8d;
               font-size: 1em;
             }
-            .info-box {
-              background: #f8f9fa;
-              padding: 12px 15px;
+            .logic-box {
+              background: #fff0f0;
+              padding: 15px;
               border-radius: 8px;
               margin: 15px 0;
               border-left: 3px solid #e74c3c;
             }
-            .info-box h4 {
+            .logic-box h4 {
               color: #c0392b;
-              margin-bottom: 6px;
-              display: flex;
-              align-items: center;
-              gap: 8px;
-              font-size: 0.95em;
+              margin-bottom: 10px;
+              font-size: 1em;
             }
-            .specs {
+            .logic-grid {
               display: grid;
-              grid-template-columns: repeat(3, 1fr);
+              grid-template-columns: repeat(2, 1fr);
               gap: 10px;
-              margin: 15px 0;
+              margin-top: 10px;
             }
-            .spec-item {
+            .logic-item {
               background: white;
               padding: 10px;
               border-radius: 6px;
               text-align: center;
               border: 1px solid #e0e0e0;
+            }
+            .logic-label {
               font-size: 0.9em;
-            }
-            .spec-label {
-              font-size: 0.8em;
-              color: #7f8c8d;
-              margin-bottom: 4px;
-            }
-            .spec-value {
-              font-size: 0.95em;
-              font-weight: bold;
               color: #2c3e50;
+              font-weight: bold;
+              margin-bottom: 5px;
+            }
+            .logic-value {
+              font-size: 0.85em;
+              color: #7f8c8d;
             }
             .form-container {
               background: #f8f9fa;
@@ -1050,20 +883,8 @@ module.exports = async (req, res) => {
             .btn-primary:hover {
               background: #c0392b;
             }
-            .url-display {
-              background: #2c3e50;
-              color: white;
-              padding: 10px;
-              border-radius: 6px;
-              margin: 12px 0;
-              font-family: 'Courier New', monospace;
-              font-size: 13px;
-              word-break: break-all;
-              display: none;
-            }
             .preview-container {
               margin: 20px 0;
-              display: none;
             }
             .preview-header {
               display: flex;
@@ -1091,29 +912,6 @@ module.exports = async (req, res) => {
               border-radius: 4px;
               max-height: 350px;
               border: 1px solid #eee;
-            }
-            .response-info {
-              margin: 20px 0;
-            }
-            .response-header {
-              background: #2c3e50;
-              color: white;
-              padding: 8px 12px;
-              border-radius: 6px 6px 0 0;
-              font-weight: 600;
-              font-size: 0.95em;
-            }
-            .response-body {
-              background: #f8f9fa;
-              padding: 12px;
-              border-radius: 0 0 6px 6px;
-              border: 1px solid #ddd;
-              border-top: none;
-              font-family: 'Courier New', monospace;
-              font-size: 12px;
-              white-space: pre-wrap;
-              max-height: 180px;
-              overflow-y: auto;
             }
             .examples {
               margin-top: 25px;
@@ -1157,103 +955,61 @@ module.exports = async (req, res) => {
               align-items: center;
               justify-content: center;
             }
-            .feature-list {
-              background: #f8f9fa;
-              padding: 12px 15px;
-              border-radius: 8px;
-              margin: 15px 0;
+            .info-text {
+              color: #7f8c8d;
               font-size: 0.9em;
-            }
-            .feature-list ul {
-              list-style: none;
-              padding-left: 0;
-              margin: 0;
-            }
-            .feature-list li {
-              padding: 5px 0;
-              color: #555;
-              display: flex;
-              align-items: center;
-            }
-            .feature-list li:before {
-              content: "✓ ";
-              color: #27ae60;
-              font-weight: bold;
-              margin-right: 8px;
-            }
-            .auto-adjust-info {
-              background: #ffe8e8;
-              border: 1px solid #ffcccc;
-              color: #cc0000;
-              padding: 10px;
-              border-radius: 6px;
-              margin: 10px 0;
-              font-size: 0.9em;
-            }
-            .auto-adjust-info ul {
-              margin: 5px 0 0 15px;
-              padding: 0;
-            }
-            .auto-adjust-info li {
-              margin-bottom: 3px;
+              margin-top: 5px;
+              font-style: italic;
             }
             @media (max-width: 768px) {
-              .specs { grid-template-columns: repeat(2, 1fr); }
+              .logic-grid { grid-template-columns: 1fr; }
               .nav { flex-direction: column; }
               .container { padding: 15px; }
-            }
-            @media (max-width: 480px) {
-              .specs { grid-template-columns: 1fr; }
             }
           </style>
           <script>
             function updatePreview() {
               const textInput = document.getElementById('text');
-              const urlDisplay = document.getElementById('urlDisplay');
               const previewImage = document.getElementById('previewImage');
-              const responseBody = document.getElementById('responseBody');
               const previewContainer = document.getElementById('previewContainer');
+              const wordCountDisplay = document.getElementById('wordCount');
+              const fontSizeDisplay = document.getElementById('fontSize');
+              const lineCountDisplay = document.getElementById('lineCount');
               
               const text = textInput.value.trim();
+              const wordCount = text === '' ? 0 : text.split(' ').length;
               
               if (text.length > 0) {
                 const encodedText = encodeURIComponent(text);
                 const url = '/bratanim?text=' + encodedText;
                 
-                // Update URL display
-                urlDisplay.textContent = window.location.origin + url;
-                urlDisplay.style.display = 'block';
-                
                 // Update preview image dengan cache bust
                 previewImage.src = url + '&t=' + Date.now();
                 previewContainer.style.display = 'block';
                 
-                // Update response info
-                const headers = [
-                  'HTTP/1.1 200 OK',
-                  'Content-Type: image/gif',
-                  'Content-Length: [dynamic]',
-                  'Cache-Control: public, max-age=3600',
-                  'Content-Disposition: inline; filename="brat-animation.gif"'
-                ].join('\\n');
+                // Update logic info
+                wordCountDisplay.textContent = wordCount + ' words';
                 
-                // Tentukan info berdasarkan panjang text
-                const wordCount = text.split(' ').length;
-                let textInfo;
-                if (wordCount <= 10) {
-                  textInfo = 'Short text: 3 lines, 180px font';
-                } else if (wordCount <= 20) {
-                  textInfo = 'Medium text: 4 lines, auto font';
-                } else {
-                  textInfo = 'Long text: 5 lines, 140px font, ellipsis if needed';
-                }
+                // Tentukan font size berdasarkan jumlah kata
+                let fontSize;
+                if (wordCount <= 3) fontSize = '180px';
+                else if (wordCount <= 8) fontSize = '170px';
+                else if (wordCount <= 15) fontSize = '160px';
+                else if (wordCount <= 25) fontSize = '150px';
+                else fontSize = '140px';
+                fontSizeDisplay.textContent = fontSize;
                 
-                const body = \`Animated GIF 800×800 • Smart adjustment • \${textInfo} • Fast animation\`;
-                responseBody.textContent = headers + '\\n\\n' + body;
+                // Tentukan line count
+                let lineCount;
+                if (wordCount <= 5) lineCount = '3 lines';
+                else if (wordCount <= 15) lineCount = '4 lines';
+                else lineCount = '5 lines';
+                lineCountDisplay.textContent = lineCount;
               } else {
-                urlDisplay.style.display = 'none';
                 previewContainer.style.display = 'none';
-                responseBody.textContent = 'Enter text to see preview and response info';
+                wordCountDisplay.textContent = '0 words';
+                fontSizeDisplay.textContent = 'N/A';
+                lineCountDisplay.textContent = 'N/A';
               }
             }
             
@@ -1286,13 +1042,6 @@ module.exports = async (req, res) => {
               textInput.addEventListener('paste', function() {
                 setTimeout(updatePreview, 100);
               });
-              
-              // Enter key to generate
-              textInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && e.ctrlKey) {
-                  generateGif();
-                }
-              });
             });
           </script>
         </head>
@@ -1300,72 +1049,50 @@ module.exports = async (req, res) => {
           <div class="container">
             <div class="header">
               <h1><span class="icon">🎬</span> Brat GIF Generator</h1>
-              <p>800×800 • Smart Text Adjustment • Word-by-Word Animation</p>
+              <p>800×800 • Smart Font Scaling • Word-by-Word Animation</p>
             </div>
             
-            <div class="auto-adjust-info">
-              <strong>✨ Smart Animation Adjustment:</strong>
-              <ul>
-                <li><strong>Short text</strong> (≤10 words): 3 lines, font up to 180px</li>
-                <li><strong>Medium text</strong> (11-20 words): 4 lines, font auto-adjusted</li>
-                <li><strong>Long text</strong> (>20 words): 5 lines max, font down to 140px</li>
-                <li>Auto ellipsis (...) at animation end if text overflows</li>
-                <li>No word limit - system adjusts automatically</li>
-                <li>Fast animation with minimal delay between words</li>
-              </ul>
-            </div>
-            
-            <div class="info-box">
-              <h4><span class="icon">⚡</span> Animation Specifications:</h4>
-              <div class="specs">
-                <div class="spec-item">
-                  <div class="spec-label">Size</div>
-                  <div class="spec-value">800×800 px</div>
+            <div class="logic-box">
+              <h4>📈 Animation Scaling Logic:</h4>
+              <p class="info-text">Fewer words = Larger font • More words = Smaller font • 3-5 lines maximum</p>
+              <div class="logic-grid">
+                <div class="logic-item">
+                  <div class="logic-label">≤3 words</div>
+                  <div class="logic-value">180px font • 3 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Font Range</div>
-                  <div class="spec-value">140-180px</div>
+                <div class="logic-item">
+                  <div class="logic-label">4-8 words</div>
+                  <div class="logic-value">170px font • 3-4 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Max Lines</div>
-                  <div class="spec-value">5 lines</div>
+                <div class="logic-item">
+                  <div class="logic-label">9-15 words</div>
+                  <div class="logic-value">160px font • 4 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Delay</div>
-                  <div class="spec-value">100ms/word</div>
+                <div class="logic-item">
+                  <div class="logic-label">16-25 words</div>
+                  <div class="logic-value">150px font • 4-5 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Fade Out</div>
-                  <div class="spec-value">3 frames</div>
+                <div class="logic-item">
+                  <div class="logic-label">26+ words</div>
+                  <div class="logic-value">140px font • 5 lines</div>
                 </div>
-                <div class="spec-item">
-                  <div class="spec-label">Loop</div>
-                  <div class="spec-value">Infinite</div>
+                <div class="logic-item">
+                  <div class="logic-label">Animation</div>
+                  <div class="logic-value">100ms/word • 3 frame fade</div>
                 </div>
               </div>
             </div>
             
-            <div class="feature-list">
-              <ul>
-                <li>Words appear one by one from top-left</li>
-                <li>Smart font size adjustment based on text length</li>
-                <li>Auto ellipsis when text exceeds canvas space</li>
-                <li>Fast animation with minimal pauses</li>
-                <li>Text guaranteed to stay within bounds</li>
-                <li>Perfect justify alignment for all text lengths</li>
-              </ul>
-            </div>
-            
             <div class="form-container">
               <div class="form-group">
-                <label for="text">Enter your text (any length):</label>
+                <label for="text">Enter your text:</label>
                 <textarea 
                   id="text" 
                   name="text" 
                   rows="4" 
-                  placeholder="Type any amount of text here... System will automatically adjust font size, lines, and add ellipsis if needed."
+                  placeholder="Type your text here... Font size adjusts automatically during animation."
                   oninput="updatePreview()"
-                >Watch words appear one by one with smart font adjustment based on text length</textarea>
+                >Watch font size adjust during animation</textarea>
               </div>
               <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <button type="button" class="btn btn-primary" onclick="updatePreview()">
@@ -1376,45 +1103,31 @@ module.exports = async (req, res) => {
                 </button>
               </div>
               
-              <div id="urlDisplay" class="url-display">
-                ${host}/bratanim?text=Watch%20words%20appear%20one%20by%20one%20with%20smart%20font%20adjustment%20based%20on%20text%20length
+              <div style="margin-top: 15px; font-size: 0.9em; color: #7f8c8d;">
+                <div><strong>Current text:</strong> <span id="wordCount">4 words</span></div>
+                <div><strong>Font size:</strong> <span id="fontSize">170px</span></div>
+                <div><strong>Lines:</strong> <span id="lineCount">3 lines</span></div>
               </div>
             </div>
             
             <div class="preview-container" id="previewContainer">
               <div class="preview-header">
                 <h3><span class="icon">👁️</span> Live Preview</h3>
-                <small style="color: #7f8c8d; font-size: 0.85em;">Updates automatically with smart adjustment</small>
+                <small style="color: #7f8c8d; font-size: 0.85em;">Animation with smart font scaling</small>
               </div>
               <div class="preview-area">
-                <img id="previewImage" src="/bratanim?text=Watch%20words%20appear%20one%20by%20one%20with%20smart%20font%20adjustment%20based%20on%20text%20length" 
-                     alt="GIF Preview"
-                     onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'padding:40px;color:#7f8c8d;\\'>Preview loading...</div>';">
-              </div>
-            </div>
-            
-            <div class="response-info">
-              <div class="response-header">
-                <span class="icon">📡</span> HTTP Response
-              </div>
-              <div class="response-body" id="responseBody">
-                HTTP/1.1 200 OK
-                Content-Type: image/gif
-                Content-Length: [dynamic]
-                Cache-Control: public, max-age=3600
-                Content-Disposition: inline; filename="brat-animation.gif"
-                
-                Animated GIF 800×800 • Smart adjustment • Medium text: 4 lines, auto font • Fast animation
+                <img id="previewImage" src="/bratanim?text=Watch%20font%20size%20adjust%20during%20animation" 
+                     alt="GIF Preview">
               </div>
             </div>
             
             <div class="examples">
               <h3><span class="icon">💡</span> Test Examples:</h3>
               <div class="example-links">
-                <button class="example-link" onclick="loadExample('Hello Animation'); return false;">Very Short</button>
-                <button class="example-link" onclick="loadExample('This animation shows smart text adjustment'); return false;">Medium</button>
-                <button class="example-link" onclick="loadExample('This is a very long text that will test the automatic adjustment system to see how it handles multiple lines and reduces font size when necessary to fit everything perfectly within the canvas bounds while animating word by word'); return false;">Long Text</button>
-                <button class="example-link" onclick="loadExample('Extremely long text that definitely requires font size reduction and line increase with possible ellipsis at the end to indicate truncation when the content exceeds the maximum allowed space within the defined canvas dimensions and formatting constraints while still maintaining smooth animation between each word appearing on screen'); return false;">Extreme Length</button>
+                <button class="example-link" onclick="loadExample('Hello'); return false;">Very Short (1 word)</button>
+                <button class="example-link" onclick="loadExample('Words appear one by one'); return false;">Short (4 words)</button>
+                <button class="example-link" onclick="loadExample('This animation demonstrates smart font scaling based on word count'); return false;">Medium (6 words)</button>
+                <button class="example-link" onclick="loadExample('This is a longer animation example that shows how font size decreases as more words are added to maintain readability within the canvas'); return false;">Long (15+ words)</button>
               </div>
             </div>
             
@@ -1463,7 +1176,7 @@ module.exports = async (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Brat Generator - Smart Text Adjustment</title>
+      <title>Brat Generator - Smart Font Scaling</title>
       <style>
         * {
           margin: 0;
@@ -1507,19 +1220,50 @@ module.exports = async (req, res) => {
           margin: 0 auto 20px;
         }
         
-        .smart-feature {
+        .scaling-system {
           background: linear-gradient(135deg, #3498db, #2c3e50);
           color: white;
-          padding: 15px;
-          border-radius: 10px;
-          margin: 20px auto;
-          max-width: 600px;
-          text-align: center;
+          padding: 20px;
+          border-radius: 12px;
+          margin: 30px auto;
+          max-width: 800px;
         }
         
-        .smart-feature h3 {
-          margin-bottom: 10px;
+        .scaling-system h3 {
+          text-align: center;
+          margin-bottom: 20px;
+          font-size: 1.4em;
+        }
+        
+        .scaling-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 15px;
+        }
+        
+        .scale-item {
+          background: rgba(255,255,255,0.1);
+          padding: 15px;
+          border-radius: 8px;
+          text-align: center;
+          backdrop-filter: blur(10px);
+        }
+        
+        .scale-words {
+          font-size: 1.1em;
+          font-weight: bold;
+          margin-bottom: 8px;
+        }
+        
+        .scale-font {
           font-size: 1.3em;
+          font-weight: bold;
+          margin-bottom: 5px;
+        }
+        
+        .scale-lines {
+          font-size: 0.9em;
+          opacity: 0.9;
         }
         
         .cards {
@@ -1632,64 +1376,6 @@ module.exports = async (req, res) => {
           background: #c0392b;
         }
         
-        .adjustment-info {
-          background: white;
-          border-radius: 12px;
-          padding: 25px;
-          margin-top: 30px;
-          box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-        }
-        
-        .adjustment-info h3 {
-          color: #2c3e50;
-          margin-bottom: 20px;
-          font-size: 1.3em;
-          text-align: center;
-        }
-        
-        .adjustment-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 20px;
-        }
-        
-        .adjustment-item {
-          background: #f8f9fa;
-          padding: 20px;
-          border-radius: 10px;
-          text-align: center;
-          border: 2px solid transparent;
-        }
-        
-        .adjustment-item.short {
-          border-color: #3498db;
-        }
-        
-        .adjustment-item.medium {
-          border-color: #f39c12;
-        }
-        
-        .adjustment-item.long {
-          border-color: #e74c3c;
-        }
-        
-        .adjustment-label {
-          font-size: 1.1em;
-          font-weight: bold;
-          margin-bottom: 10px;
-          color: #2c3e50;
-        }
-        
-        .adjustment-short { color: #3498db; }
-        .adjustment-medium { color: #f39c12; }
-        .adjustment-long { color: #e74c3c; }
-        
-        .adjustment-details {
-          font-size: 0.9em;
-          color: #7f8c8d;
-          line-height: 1.5;
-        }
-        
         footer {
           text-align: center;
           padding: 30px 20px;
@@ -1698,19 +1384,8 @@ module.exports = async (req, res) => {
           border-top: 1px solid #eee;
         }
         
-        .ellipsis-note {
-          background: #fff3cd;
-          border: 1px solid #ffeaa7;
-          color: #856404;
-          padding: 12px;
-          border-radius: 8px;
-          margin: 20px 0;
-          text-align: center;
-          font-size: 0.95em;
-        }
-        
         @media (max-width: 768px) {
-          .cards, .adjustment-grid {
+          .cards, .scaling-grid {
             grid-template-columns: 1fr;
           }
           .container {
@@ -1723,50 +1398,37 @@ module.exports = async (req, res) => {
       <div class="container">
         <div class="header">
           <h1>✨ Brat Generator</h1>
-          <p>Smart text adjustment system with automatic font sizing and line management</p>
-          
-          <div class="smart-feature">
-            <h3>🤖 Smart Text Adjustment</h3>
-            <p>System automatically adjusts font size (140-180px) and lines (3-5) based on text length</p>
-          </div>
+          <p>Smart font scaling based on word count • 3-5 lines maximum</p>
         </div>
         
-        <div class="adjustment-info">
-          <h3>📊 Smart Adjustment Rules</h3>
-          <div class="adjustment-grid">
-            <div class="adjustment-item short">
-              <div class="adjustment-label adjustment-short">Short Text</div>
-              <div class="adjustment-details">
-                ≤10 words<br>
-                <strong>3 lines max</strong><br>
-                Font up to <strong>180px</strong><br>
-                Perfect for short messages
-              </div>
+        <div class="scaling-system">
+          <h3>📊 Font Scaling System</h3>
+          <div class="scaling-grid">
+            <div class="scale-item">
+              <div class="scale-words">1-3 words</div>
+              <div class="scale-font">180px</div>
+              <div class="scale-lines">3 lines max</div>
             </div>
-            
-            <div class="adjustment-item medium">
-              <div class="adjustment-label adjustment-medium">Medium Text</div>
-              <div class="adjustment-details">
-                11-20 words<br>
-                <strong>4 lines max</strong><br>
-                Font <strong>auto-adjusted</strong><br>
-                Balanced text display
-              </div>
+            <div class="scale-item">
+              <div class="scale-words">4-8 words</div>
+              <div class="scale-font">170px</div>
+              <div class="scale-lines">3-4 lines</div>
             </div>
-            
-            <div class="adjustment-item long">
-              <div class="adjustment-label adjustment-long">Long Text</div>
-              <div class="adjustment-details">
-                >20 words<br>
-                <strong>5 lines max</strong><br>
-                Font down to <strong>140px</strong><br>
-                Auto ellipsis if needed
-              </div>
+            <div class="scale-item">
+              <div class="scale-words">9-15 words</div>
+              <div class="scale-font">160px</div>
+              <div class="scale-lines">4 lines max</div>
             </div>
-          </div>
-          
-          <div class="ellipsis-note">
-            <strong>Note:</strong> If text exceeds available space, automatic ellipsis (...) will be added at the end
+            <div class="scale-item">
+              <div class="scale-words">16-25 words</div>
+              <div class="scale-font">150px</div>
+              <div class="scale-lines">4-5 lines</div>
+            </div>
+            <div class="scale-item">
+              <div class="scale-words">26+ words</div>
+              <div class="scale-font">140px</div>
+              <div class="scale-lines">5 lines max</div>
+            </div>
           </div>
         </div>
         
@@ -1778,14 +1440,14 @@ module.exports = async (req, res) => {
             </div>
             <ul class="features">
               <li>800×800 square canvas</li>
-              <li>Smart font size (140-180px)</li>
-              <li>Auto line adjustment (3-5 lines)</li>
+              <li>Smart font scaling (140-180px)</li>
+              <li>3-5 lines based on word count</li>
               <li>White background, black text</li>
-              <li>Auto ellipsis for overflow</li>
-              <li>No text length limits</li>
+              <li>Justify text alignment</li>
+              <li>No ellipsis - text always fits</li>
             </ul>
             <a href="/brat" class="btn btn-jpeg">Try JPEG Generator</a>
-            <a href="/brat?text=Test%20smart%20adjustment" class="btn" style="margin-top: 8px;">See Example</a>
+            <a href="/brat?text=Test%20smart%20scaling" class="btn" style="margin-top: 8px;">See Example</a>
           </div>
           
           <div class="card">
@@ -1795,21 +1457,21 @@ module.exports = async (req, res) => {
             </div>
             <ul class="features">
               <li>Word-by-word animation</li>
-              <li>Smart font adjustment</li>
-              <li>Auto line management (3-5)</li>
+              <li>Smart font scaling</li>
+              <li>3-5 lines auto adjustment</li>
               <li>Fast animation (100ms/word)</li>
               <li>Infinite loop</li>
-              <li>Auto ellipsis if needed</li>
+              <li>Text always fits canvas</li>
             </ul>
             <a href="/bratanim" class="btn btn-gif">Try GIF Generator</a>
-            <a href="/bratanim?text=Smart%20animation%20adjustment" class="btn" style="margin-top: 8px;">See Example</a>
+            <a href="/bratanim?text=Smart%20animation%20scaling" class="btn" style="margin-top: 8px;">See Example</a>
           </div>
         </div>
         
         <footer>
           <p>Made with ❤️ by <strong>Xyz-kings</strong></p>
           <p style="margin-top: 10px; font-size: 0.9em;">
-            Intelligent text adjustment • No limits • Perfect for all text lengths
+            Font size adjusts based on word count • Fewer words = Larger font • More words = Smaller font
           </p>
         </footer>
       </div>
