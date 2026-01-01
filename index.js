@@ -102,36 +102,57 @@ function drawJustifiedText(ctx, lines, margin, lineHeight) {
   });
 }
 
-// --- BRAT BASIC JPEG ---
-function generateImage(text) {
-  const width = 800, height = 800, margin = 50;
+// === BLOK BARU RESPONSIVE ===
+function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 30) {
+  const words = text.split(' ');
+  const textLength = words.length;
+
+  let maxLines = textLength < 20 ? 3 : 5;
+  let maxFontSize = textLength < 20 ? 180 : 140;
+  let minFontSize = 30;
+
+  let fontSize = maxFontSize;
+  let lines = [];
+
+  do {
+    ctx.font = `${fontSize}px XyzFont`;
+    lines = wrapText(ctx, text, canvasWidth - margin * 2, maxLines);
+
+    const lineHeight = fontSize * 1.2;
+    const totalHeight = lines.length * lineHeight;
+
+    if (lines.length > maxLines || totalHeight > canvasHeight - margin * 2) {
+      fontSize -= 5;
+    } else {
+      break;
+    }
+  } while (fontSize >= minFontSize);
+
+  return { fontSize, lines };
+}
+
+function generateImageResponsive(text) {
+  const width = 800, height = 800;
+  const margin = 30;
+
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Background putih polos
+  // Background putih
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
-  if (text.length > 200) text = text.substring(0, 200); // Batasi text input
+  if (text.length > 200) text = text.substring(0, 200);
 
-  // Tentukan maxLines (3 untuk normal, 4 jika panjang)
-  const textLength = text.length;
-  const maxLines = 4;
-  const maxFontSize = 140;
-
-  const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, maxLines, maxFontSize);
+  const { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin);
 
   ctx.font = `${fontSize}px XyzFont`;
   ctx.fillStyle = '#000000';
   ctx.textBaseline = 'top';
 
   const lineHeight = fontSize * 1.2;
+  let startY = margin;
 
-  // Pastikan text tidak keluar dari canvas
-  const totalTextHeight = lines.length * lineHeight;
-  const startY = margin; // mulai dari atas canvas, biar tidak numpuk tengah
-
-  // Draw dengan batasan yang aman
   drawJustifiedText(ctx, lines, startY, lineHeight);
 
   return canvas.toBuffer('image/jpeg', { quality: 0.95 });
