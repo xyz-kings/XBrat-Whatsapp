@@ -241,23 +241,24 @@ function generateGifAnimated(text) {
 }
   
 // Fade out langsung setelah kata terakhir muncul
-const fadeFrames = 1; // langsung 1 frame biar cepet fade-out
+// Langsung fade-out 1 frame setelah kata terakhir
+const fadeFrames = 1; // 1 frame biar langsung fade
 for (let fade = 0; fade < fadeFrames; fade++) {
-  // background putih polos
+  // Background putih polos
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, width, height);
 
-  // font setup
   ctx.font = `${fontSize}px XyzFont`;
-  ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / fadeFrames)})`; // alpha fade
+  ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / fadeFrames)})`;
 
-  // gambar semua kata
+  // Gambar semua kata
   wordPositions.forEach(pos => {
     ctx.fillText(pos.word, pos.x, pos.y);
   });
 
   encoder.addFrame(ctx);
 }
+
   encoder.finish();
   return encoder.out.getData();
 }
