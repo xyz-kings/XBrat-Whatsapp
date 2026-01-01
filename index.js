@@ -5,7 +5,7 @@ const path = require('path');
 // Register font
 GlobalFonts.registerFromPath(path.join(__dirname, 'xyzfont.ttf'), 'XyzFont');
 
-// Word wrap
+// Word-wrap
 function wrapText(ctx, text, maxWidth) {
   const words = text.split(' ');
   const lines = [];
@@ -26,6 +26,21 @@ function wrapText(ctx, text, maxWidth) {
   return lines;
 }
 
+// Fit font size & max lines
+function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 20, maxLines = 3, maxFontSize = 60) {
+  let fontSize = maxFontSize;
+  let lines = [];
+
+  do {
+    ctx.font = `bold ${fontSize}px XyzFont`;
+    lines = wrapText(ctx, text, canvasWidth - margin * 2);
+    if (lines.length > maxLines) fontSize -= 2;
+    else break;
+  } while (fontSize > 10);
+
+  return { fontSize, lines };
+}
+
 // Draw justified text
 function drawJustifiedText(ctx, lines, x, yStart, lineHeight, canvasWidth, margin) {
   lines.forEach((line, idx) => {
@@ -44,23 +59,7 @@ function drawJustifiedText(ctx, lines, x, yStart, lineHeight, canvasWidth, margi
   });
 }
 
-// Fit font size & max lines
-function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 20, maxLines = 3, maxFontSize = 100) {
-  let fontSize = maxFontSize;
-  let lines = [];
-
-  do {
-    ctx.font = `bold ${fontSize}px XyzFont`;
-    lines = wrapText(ctx, text, canvasWidth - margin * 2);
-    if (lines.length > maxLines) {
-      fontSize -= 2;
-    } else break;
-  } while (fontSize > 10);
-
-  return { fontSize, lines };
-}
-
-// Generate PNG (brat basic)
+// --- BRAT BASIC PNG ---
 function generateImage(text) {
   const width = 500, height = 500, margin = 20;
   const canvas = createCanvas(width, height);
@@ -78,26 +77,19 @@ function generateImage(text) {
   ctx.textBaseline = 'top';
 
   const lineHeight = fontSize * 1.2;
-  const yStart = margin; // mulai dari atas
+  const yStart = margin;
 
   drawJustifiedText(ctx, lines, margin, yStart, lineHeight, width, margin);
 
   return canvas.toBuffer('image/png');
 }
 
-// Generate GIF animasi kata-per-kata
+// --- BRAT ANIMASI GIF ---
 function generateGifAnimated(text) {
   const width = 500, height = 500, margin = 20;
-  const delay = 2000; // 2 detik per kata
+  const delay = 200; // tiap frame 200ms → animasi halus
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
-
-  const positions = [
-    { x: margin, y: margin, align: 'left' },
-    { x: width / 2, y: height / 2, align: 'center' },
-    { x: width - margin, y: height / 2, align: 'right' },
-    { x: width / 2, y: height - margin, align: 'center' }
-  ];
 
   const words = text.split(' ');
   const encoder = new GIFEncoder(width, height);
@@ -106,28 +98,43 @@ function generateGifAnimated(text) {
   encoder.setDelay(delay);
   encoder.setQuality(10);
 
-  for (let posIdx = 0; posIdx < positions.length; posIdx++) {
-    const pos = positions[posIdx];
-    let { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, 3, 60);
-    ctx.font = `bold ${fontSize}px XyzFont`;
-    ctx.fillStyle = 'black';
-    ctx.textBaseline = 'top';
-    const lineHeight = fontSize * 1.2;
+  const positions = [
+    { x: margin, y: margin, align: 'left' },
+    { x: width / 2, y: height / 2, align: 'center' },
+    { x: width - margin, y: height / 2, align: 'right' },
+    { x: width / 2, y: height - margin, align: 'center' }
+  ];
 
-    for (let i = 1; i <= words.length; i++) {
-      const currentText = words.slice(0, i).join(' ');
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, width, height);
+  // Loop posisi + kata per kata
+  for (let loop = 0; loop < 2; loop++) {
+    for (const pos of positions) {
+      let { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, 3, 60);
+      ctx.font = `bold ${fontSize}px XyzFont`;
+      ctx.fillStyle = 'black';
+      ctx.textBaseline = 'top';
+      const lineHeight = fontSize * 1.2;
 
-      const curLines = wrapText(ctx, currentText, width - margin * 2);
+      let displayedWords = '';
+      for (let i = 0; i < words.length; i++) {
+        displayedWords += (i === 0 ? '' : ' ') + words[i];
 
-      let yStart;
-      if (pos.align === 'left') yStart = pos.y;
-      else if (pos.align === 'center') yStart = pos.y - (curLines.length * lineHeight) / 2;
-      else if (pos.align === 'right') yStart = pos.y;
+        for (let frame = 0; frame < 10; frame++) { // gerakan halus
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, width, height);
 
-      drawJustifiedText(ctx, curLines, pos.x, yStart, lineHeight, width, margin);
-      encoder.addFrame(ctx);
+          ctx.fillStyle = 'black';
+          const curLines = wrapText(ctx, displayedWords, width - margin * 2);
+
+          let yStart;
+          if (pos.align === 'left') yStart = pos.y + Math.sin(frame / 2) * 2;
+          else if (pos.align === 'center') yStart = pos.y - (curLines.length * lineHeight) / 2 + Math.sin(frame / 2) * 2;
+          else if (pos.align === 'right') yStart = pos.y + Math.sin(frame / 2) * 2;
+
+          drawJustifiedText(ctx, curLines, pos.x, yStart, lineHeight, width, margin);
+
+          encoder.addFrame(ctx);
+        }
+      }
     }
   }
 
@@ -135,7 +142,7 @@ function generateGifAnimated(text) {
   return encoder.out.getData();
 }
 
-// Handler utama
+// --- HANDLER ---
 module.exports = async (req, res) => {
   const url = req.url || '';
 
@@ -151,8 +158,8 @@ module.exports = async (req, res) => {
       res.setHeader('Cache-Control', 'public, max-age=3600');
       return res.send(imageBuffer);
     } catch (err) {
-      console.error('Gagal membuat gambar:', err);
-      return res.status(500).send('Gagal membuat gambar.');
+      console.error('Gagal membuat PNG:', err);
+      return res.status(500).send('Gagal membuat PNG.');
     }
   }
 
@@ -177,9 +184,19 @@ module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   return res.status(200).send(JSON.stringify({
     info: "Brat Text & GIF Generator API",
-    endpoints: { "/brat?text=...": "Generate PNG image", "/bratanim?text=...": "Generate animated GIF" },
-    examples: { PNG: "/brat?text=Hello%20World", GIF: "/bratanim?text=Hello%20World" },
-    notes: ["PNG basic masih ada", "GIF animasi kata-per-kata, looping posisi", "Margin 20px", "Font auto adjust"],
+    endpoints: {
+      "/brat?text=...": "Generate PNG image",
+      "/bratanim?text=...": "Generate animated GIF"
+    },
+    examples: {
+      PNG: "/brat?text=Hello%20World",
+      GIF: "/bratanim?text=Hello%20World"
+    },
+    notes: [
+      "PNG basic tetap ada",
+      "GIF animasi kata-per-kata + gerak-gerak",
+      "Margin 20px, font auto-fit"
+    ],
     creator: "Xyz-kings"
   }, null, 2));
 };
