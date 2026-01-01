@@ -129,7 +129,7 @@ function generateImage(text) {
 
   // Pastikan text tidak keluar dari canvas
   const totalTextHeight = lines.length * lineHeight;
-  const startY = Math.max(margin, (height - totalTextHeight) / 2);
+  const startY = margin; // mulai dari atas canvas, biar tidak numpuk tengah
 
   // Draw dengan batasan yang aman
   drawJustifiedText(ctx, lines, startY, lineHeight);
