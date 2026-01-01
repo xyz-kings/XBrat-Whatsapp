@@ -152,7 +152,7 @@ function generateGifAnimated(text) {
 
   // Persiapan text
   const words = text.split(' ');
-  if (words.length > 30) {
+  if (words.length > 35) {
     words.length = 30; // Batasi maksimal 30 kata
   }
 
@@ -1587,7 +1587,7 @@ module.exports = async (req, res) => {
             <ul class="features">
               <li>800×800 square canvas</li>
               <li>Font up to 180px</li>
-              <li>Max 3-4 lines (auto-adjust)</li>
+              <li>Max 3-5 lines (auto-adjust)</li>
               <li>White background, black text</li>
               <li>Text never exceeds canvas</li>
               <li>Justify alignment</li>
@@ -1626,7 +1626,7 @@ module.exports = async (req, res) => {
               <div class="info-label">Max Font Size</div>
             </div>
             <div class="info-item">
-              <div class="info-value">3-4</div>
+              <div class="info-value">3-5</div>
               <div class="info-label">Max Lines</div>
             </div>
             <div class="info-item">
