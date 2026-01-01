@@ -258,8 +258,8 @@ for (let fade = 0; fade < fadeFrames; fade++) {
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, '#f5f7fa');
   gradient.addColorStop(1, '#c3cfe2');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = '#ffffff'; // putih polos
+ctx.fillRect(0, 0, width, height);
 
   ctx.font = `${fontSize}px XyzFont`;
   ctx.fillStyle = `rgba(45, 52, 54, ${1 - fade / fadeFrames})`;
