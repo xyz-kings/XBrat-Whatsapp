@@ -27,7 +27,7 @@ function wrapText(ctx, text, maxWidth) {
 }
 
 // Fit font size
-function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 40, maxLines = 6, maxFontSize = 40) {
+function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 40, maxLines = 6, maxFontSize = 290) {
   let fontSize = maxFontSize;
   let lines = [];
 
