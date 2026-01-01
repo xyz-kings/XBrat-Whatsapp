@@ -84,17 +84,18 @@ function generateImage(text) {
   return canvas.toBuffer('image/png');
 }
 
-// --- BRAT ANIMASI GIF ---
+// --- BRAT ANIMASI GIF (fade+slide) ---
 function generateGifAnimated(text) {
   const width = 500, height = 500, margin = 20;
-  const delay = 200; // tiap frame 200ms → animasi halus
+  const framesPerWord = 10; // jumlah frame per kata untuk animasi halus
+  const delay = 100; // 100ms tiap frame
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
   const words = text.split(' ');
   const encoder = new GIFEncoder(width, height);
   encoder.start();
-  encoder.setRepeat(0);
+  encoder.setRepeat(0); // loop forever
   encoder.setDelay(delay);
   encoder.setQuality(10);
 
@@ -105,33 +106,46 @@ function generateGifAnimated(text) {
     { x: width / 2, y: height - margin, align: 'center' }
   ];
 
-  // Loop posisi + kata per kata
-  for (let loop = 0; loop < 2; loop++) {
+  for (let loop = 0; loop < 2; loop++) { // ulang 2 kali
     for (const pos of positions) {
-      let { fontSize, lines } = fitTextToCanvas(ctx, text, width, height, margin, 3, 60);
+      let { fontSize } = fitTextToCanvas(ctx, text, width, height, margin, 3, 60);
       ctx.font = `bold ${fontSize}px XyzFont`;
-      ctx.fillStyle = 'black';
       ctx.textBaseline = 'top';
       const lineHeight = fontSize * 1.2;
 
-      let displayedWords = '';
+      let displayedWords = [];
       for (let i = 0; i < words.length; i++) {
-        displayedWords += (i === 0 ? '' : ' ') + words[i];
+        displayedWords.push(words[i]);
 
-        for (let frame = 0; frame < 10; frame++) { // gerakan halus
+        for (let f = 0; f < framesPerWord; f++) {
           ctx.fillStyle = 'white';
           ctx.fillRect(0, 0, width, height);
 
           ctx.fillStyle = 'black';
-          const curLines = wrapText(ctx, displayedWords, width - margin * 2);
+
+          const currentText = displayedWords.join(' ');
+          const curLines = wrapText(ctx, currentText, width - margin * 2);
 
           let yStart;
-          if (pos.align === 'left') yStart = pos.y + Math.sin(frame / 2) * 2;
-          else if (pos.align === 'center') yStart = pos.y - (curLines.length * lineHeight) / 2 + Math.sin(frame / 2) * 2;
-          else if (pos.align === 'right') yStart = pos.y + Math.sin(frame / 2) * 2;
+          if (pos.align === 'left') yStart = pos.y;
+          else if (pos.align === 'center') yStart = pos.y - (curLines.length * lineHeight) / 2;
+          else if (pos.align === 'right') yStart = pos.y;
 
-          drawJustifiedText(ctx, curLines, pos.x, yStart, lineHeight, width, margin);
+          // slide & fade effect
+          curLines.forEach((line, idx) => {
+            const wordsInLine = line.split(' ');
+            let xPos = pos.align === 'right' ? width - margin : margin;
+            wordsInLine.forEach((word, wIdx) => {
+              const alpha = Math.min(1, (f + 1) / framesPerWord); // fade in
+              ctx.globalAlpha = alpha;
+              let xDraw = xPos;
+              if (pos.align === 'center') xDraw = width / 2;
+              ctx.fillText(word, xDraw, yStart + idx * lineHeight + (framesPerWord - f)); // slide sedikit dari bawah
+              xPos += ctx.measureText(word).width + 5; // spacing kata
+            });
+          });
 
+          ctx.globalAlpha = 1;
           encoder.addFrame(ctx);
         }
       }
@@ -194,7 +208,7 @@ module.exports = async (req, res) => {
     },
     notes: [
       "PNG basic tetap ada",
-      "GIF animasi kata-per-kata + gerak-gerak",
+      "GIF animasi kata-per-kata + fade+slide",
       "Margin 20px, font auto-fit"
     ],
     creator: "Xyz-kings"
