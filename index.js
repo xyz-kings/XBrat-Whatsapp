@@ -252,25 +252,24 @@ function generateGifAnimated(text) {
     encoder.addFrame(ctx);
   }
   
-  // Fade out (8 frame)
-  const fadeFrames = 1; // total frame fade-out
+// Fade out langsung setelah kata terakhir muncul
+const fadeFrames = 3; // jumlah frame fade-out
 for (let fade = 0; fade < fadeFrames; fade++) {
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, '#f5f7fa');
   gradient.addColorStop(1, '#c3cfe2');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
-    
-    ctx.font = `${fontSize}px XyzFont`;
-    ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / 8)})`;
-    
-    wordPositions.forEach(pos => {
-      ctx.fillText(pos.word, pos.x, pos.y);
-    });
-    
-    encoder.addFrame(ctx);
-  }
-  
+
+  ctx.font = `${fontSize}px XyzFont`;
+  ctx.fillStyle = `rgba(45, 52, 54, ${1 - fade / fadeFrames})`;
+
+  wordPositions.forEach(pos => {
+    ctx.fillText(pos.word, pos.x, pos.y);
+  });
+
+  encoder.addFrame(ctx);
+}
   encoder.finish();
   return encoder.out.getData();
 }
