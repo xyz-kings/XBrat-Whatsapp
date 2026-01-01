@@ -208,9 +208,13 @@ function generateGifAnimated(text) {
   
   // Animasi kata per kata
   for (let frame = 0; frame <= totalWords; frame++) {
-    // Clear canvas dengan background putih
-    ctx.fillStyle = '#ffffff';
+    // Clear canvas dengan background
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, '#f5f7fa');
+    gradient.addColorStop(1, '#c3cfe2');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
+    
     // Setup font
     ctx.font = `${fontSize}px XyzFont`;
     ctx.fillStyle = '#2d3436';
@@ -224,23 +228,6 @@ function generateGifAnimated(text) {
     encoder.addFrame(ctx);
   }
   
-  // Tahan teks lengkap (10 frame)
-  for (let i = 0; i < 10; i++) {
-  // Background putih polos
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, width, height);
-  
-  ctx.font = `${fontSize}px XyzFont`;
-  ctx.fillStyle = '#2d3436';
-  
-  wordPositions.forEach(pos => {
-    ctx.fillText(pos.word, pos.x, pos.y);
-  });
-  
-  encoder.addFrame(ctx);
-}
-  
-// Fade out langsung setelah kata terakhir muncul
 // Langsung fade-out 1 frame setelah kata terakhir
 const fadeFrames = 1; // 1 frame biar langsung fade
 for (let fade = 0; fade < fadeFrames; fade++) {
@@ -258,7 +245,25 @@ for (let fade = 0; fade < fadeFrames; fade++) {
 
   encoder.addFrame(ctx);
 }
+  
+// Fade out langsung setelah kata terakhir muncul
+const fadeFrames = 1; // langsung 1 frame biar cepet fade-out
+for (let fade = 0; fade < fadeFrames; fade++) {
+  // background putih polos
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, width, height);
 
+  // font setup
+  ctx.font = `${fontSize}px XyzFont`;
+  ctx.fillStyle = `rgba(45, 52, 54, ${1 - (fade / fadeFrames)})`; // alpha fade
+
+  // gambar semua kata
+  wordPositions.forEach(pos => {
+    ctx.fillText(pos.word, pos.x, pos.y);
+  });
+
+  encoder.addFrame(ctx);
+}
   encoder.finish();
   return encoder.out.getData();
 }
