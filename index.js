@@ -69,14 +69,11 @@ function generateImage(text) {
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  // Background dengan gradient
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, '#f5f7fa');
-  gradient.addColorStop(1, '#c3cfe2');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+// Background putih polos
+ctx.fillStyle = '#ffffff';
+ctx.fillRect(0, 0, width, height);
 
-  if (text.length > 300) text = text.substring(0, 300);
+if (text.length > 300) text = text.substring(0, 300);
 
   // Tentukan maxLines berdasarkan panjang text
   const textLength = text.length;
