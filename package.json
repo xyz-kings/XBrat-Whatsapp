@@ -1,0 +1,17 @@
+{
+  "name": "brat-text-gif",
+  "version": "2.0.0",
+  "description": "Xyz-Kings Dev Brat Anim high quality filter with PNG and GIF generator",
+  "main": "index.js",
+  "scripts": {
+    "start": "vercel dev",
+    "dev": "node index.js"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.53",
+    "gif-encoder-2": "^1.0.5"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
