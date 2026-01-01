@@ -36,7 +36,7 @@ function fitTextToCanvas(ctx, text, canvasWidth, canvasHeight, margin = 40, maxL
     lines = wrapText(ctx, text, canvasWidth - margin * 2);
     if (lines.length > maxLines) fontSize -= 3;
     else break;
-  } while (fontSize > 20); // Minimum 20px
+  } while (fontSize > 60); // Minimum 20px
 
   return { fontSize, lines };
 }
